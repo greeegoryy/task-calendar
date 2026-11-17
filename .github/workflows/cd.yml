@@ -51,7 +51,7 @@ jobs:
       - name: Verify deployment target
         run: |
           kubectl config current-context
-          kubectl get namespace task-calendar
+          kubectl -n task-calendar get deployments backend frontend
 
       - name: Deploy backend
         env:
@@ -69,5 +69,5 @@ jobs:
 
       - name: Verify deployments
         run: |
-          kubectl config current-context
           kubectl -n task-calendar get deployments backend frontend
+          kubectl -n task-calendar get pods
