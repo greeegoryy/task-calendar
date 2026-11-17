@@ -1,12 +1,26 @@
 
-name: Kubernetes CD Test
+name: Task Calendar CD
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["Task Calendar CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: task-calendar-production
+  cancel-in-progress: false
 
 jobs:
-  test-kubernetes:
-    name: Test Kubernetes Connection
+  deploy:
+    name: Deploy to Kubernetes
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}
+
     runs-on:
       - self-hosted
       - Linux
@@ -14,14 +28,26 @@ jobs:
       - task-calendar-deploy
 
     steps:
-      - name: Check kubectl
-        run: kubectl version --client
+      - name: Verify deployment target
+        run: |
+          kubectl config current-context
+          kubectl get namespace task-calendar
 
-      - name: Check Kubernetes context
-        run: kubectl config current-context
+      - name: Deploy backend
+        env:
+          IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
+        run: |
+          kubectl -n task-calendar set image deployment/backend backend="$IMAGE"
+          kubectl -n task-calendar rollout status deployment/backend --timeout=180s
 
-      - name: Check Kubernetes nodes
-        run: kubectl get nodes
+      - name: Deploy frontend
+        env:
+          IMAGE: ghcr.io/greeegoryy/task-calendar-frontend:${{ github.event.workflow_run.head_sha }}
+        run: |
+          kubectl -n task-calendar set image deployment/frontend frontend="$IMAGE"
+          kubectl -n task-calendar rollout status deployment/frontend --timeout=180s
 
-      - name: Check Task Calendar pods
-        run: kubectl get pods -n task-calendar
+      - name: Verify deployments
+        run: |
+          kubectl get deployments -n task-calendar
+          kubectl get pods -n task-calendar
