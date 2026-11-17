@@ -42,7 +42,7 @@ metadata:
   name: frontend
   namespace: task-calendar
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
