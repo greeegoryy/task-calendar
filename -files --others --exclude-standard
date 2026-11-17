@@ -1,0 +1,97 @@
+[1mdiff --git a/.github/workflows/cd.yml b/.github/workflows/cd.yml[m
+[1mindex 85cd075..c66a8fc 100644[m
+[1m--- a/.github/workflows/cd.yml[m
+[1m+++ b/.github/workflows/cd.yml[m
+[36m@@ -1,53 +1,53 @@[m
+[31m-[m
+[31m-name: Task Calendar CD[m
+[31m-[m
+[31m-on:[m
+[31m-  workflow_run:[m
+[31m-    workflows: ["Task Calendar CI"][m
+[31m-    types:[m
+[31m-      - completed[m
+[31m-    branches:[m
+[31m-      - main[m
+[31m-[m
+[31m-permissions:[m
+[31m-  contents: read[m
+[31m-[m
+[31m-concurrency:[m
+[31m-  group: task-calendar-production[m
+[31m-  cancel-in-progress: false[m
+[31m-[m
+[31m-jobs:[m
+[31m-  deploy:[m
+[31m-    name: Deploy to Kubernetes[m
+[31m-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}[m
+[31m-[m
+[31m-    runs-on:[m
+[31m-      - self-hosted[m
+[31m-      - Linux[m
+[31m-      - X64[m
+[31m-      - task-calendar-deploy[m
+[31m-[m
+[31m-    steps:[m
+[31m-      - name: Verify deployment target[m
+[31m-        run: |[m
+[31m-          kubectl config current-context[m
+[31m-          kubectl get namespace task-calendar[m
+[31m-[m
+[31m-      - name: Deploy backend[m
+[31m-        env:[m
+[31m-          IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}[m
+[31m-        run: |[m
+[31m-          kubectl -n task-calendar set image deployment/backend backend="$IMAGE"[m
+[31m-          kubectl -n task-calendar rollout status deployment/backend --timeout=180s[m
+[31m-[m
+[31m-      - name: Deploy frontend[m
+[31m-        env:[m
+[31m-          IMAGE: ghcr.io/greeegoryy/task-calendar-frontend:${{ github.event.workflow_run.head_sha }}[m
+[31m-        run: |[m
+[31m-          kubectl -n task-calendar set image deployment/frontend frontend="$IMAGE"[m
+[31m-          kubectl -n task-calendar rollout status deployment/frontend --timeout=180s[m
+[31m-[m
+[31m-      - name: Verify deployments[m
+[31m-        run: |[m
+[31m-          kubectl get deployments -n task-calendar[m
+[31m-          kubectl get pods -n task-calendar[m
+[32m+[m[41m[m
+[32m+[m[32mname: Task Calendar CD[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32mon:[m[41m[m
+[32m+[m[32m  workflow_run:[m[41m[m
+[32m+[m[32m    workflows: ["Task Calendar CI"][m[41m[m
+[32m+[m[32m    types:[m[41m[m
+[32m+[m[32m      - completed[m[41m[m
+[32m+[m[32m    branches:[m[41m[m
+[32m+[m[32m      - main[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32mpermissions:[m[41m[m
+[32m+[m[32m  contents: read[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32mconcurrency:[m[41m[m
+[32m+[m[32m  group: task-calendar-production[m[41m[m
+[32m+[m[32m  cancel-in-progress: false[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32mjobs:[m[41m[m
+[32m+[m[32m  deploy:[m[41m[m
+[32m+[m[32m    name: Deploy to Kubernetes[m[41m[m
+[32m+[m[32m    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32m    runs-on:[m[41m[m
+[32m+[m[32m      - self-hosted[m[41m[m
+[32m+[m[32m      - Linux[m[41m[m
+[32m+[m[32m      - X64[m[41m[m
+[32m+[m[32m      - task-calendar-deploy[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32m    steps:[m[41m[m
+[32m+[m[32m      - name: Verify deployment target[m[41m[m
+[32m+[m[32m        run: |[m[41m[m
+[32m+[m[32m          kubectl config current-context[m[41m[m
+[32m+[m[32m          kubectl get namespace task-calendar[m[41m[m
+[32m+[m[41m[m
+[32m+[m[32m      - name: Deploy backend[m[41m[m
+[32m+[m[32m        env:[m[41m[m
+[32m+[m[32m          IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}[m[41m[m
+[32
