@@ -1,0 +1,27 @@
+
+name: Kubernetes CD Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-kubernetes:
+    name: Test Kubernetes Connection
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - task-calendar-deploy
+
+    steps:
+      - name: Check kubectl
+        run: kubectl version --client
+
+      - name: Check Kubernetes context
+        run: kubectl config current-context
+
+      - name: Check Kubernetes nodes
+        run: kubectl get nodes
+
+      - name: Check Task Calendar pods
+        run: kubectl get pods -n task-calendar
