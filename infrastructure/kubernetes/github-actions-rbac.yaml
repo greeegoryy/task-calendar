@@ -1,0 +1,38 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: github-actions-deployer
+  namespace: task-calendar
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["backend", "frontend"]
+    verbs: ["get", "patch", "update"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    resourceNames: ["backend", "frontend"]
+    verbs: ["get"]
+
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-deployer
+  namespace: task-calendar
+subjects:
+  - kind: User
+    name: github-actions-deployer@task-calendar-515012.iam.gserviceaccount.com
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: github-actions-deployer
+  apiGroup: rbac.authorization.k8s.io
