@@ -69,5 +69,5 @@ jobs:
 
       - name: Verify deployments
         run: |
-          kubectl get deployments -n task-calendar
-          kubectl get pods -n task-calendar
+          kubectl config current-context
+          kubectl -n task-calendar get deployments backend frontend
