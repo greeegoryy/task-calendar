@@ -52,8 +52,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Check Python syntax
-        run: python -m compileall -q backend/appsudo apt-get install -y apt-transport-https ca-certificates gnupg curl
-      
+        run: python -m compileall -q backend/app
+        
       - name: Run backend tests
         working-directory: ./backend
         run: python -m pytest -v 
