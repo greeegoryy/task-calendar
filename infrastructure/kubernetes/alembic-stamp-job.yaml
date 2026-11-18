@@ -1,0 +1,37 @@
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: alembic-initial-stamp
+  namespace: task-calendar
+
+spec:
+  backoffLimit: 0
+
+  template:
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: ghcr-secret
+
+      containers:
+        - name: alembic
+          image: ghcr.io/greeegoryy/task-calendar-backend:da2877ade5ef740e327825f9d4b6b490b47c55e2
+
+          workingDir: /app
+
+          command:
+            - alembic
+            - -c
+            - /app/alembic.ini
+            - stamp
+            - dd90293ffe3f
+
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: database-url

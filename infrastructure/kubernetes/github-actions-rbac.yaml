@@ -4,28 +4,44 @@ kind: Role
 metadata:
   name: github-actions-deployer
   namespace: task-calendar
+
 rules:
+  # Read application deployments
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch"]
 
+  # Update backend and frontend deployments
   - apiGroups: ["apps"]
     resources: ["deployments"]
     resourceNames: ["backend", "frontend"]
     verbs: ["patch", "update"]
 
+  # Read deployment rollout status
   - apiGroups: ["apps"]
     resources: ["deployments/status"]
     resourceNames: ["backend", "frontend"]
     verbs: ["get"]
 
+  # Read pod status
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
 
+  # Read pod logs for migration troubleshooting
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+  # Read ReplicaSets
   - apiGroups: ["apps"]
     resources: ["replicasets"]
     verbs: ["get", "list", "watch"]
+
+  # Create and monitor Alembic migration Jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -33,10 +49,12 @@ kind: RoleBinding
 metadata:
   name: github-actions-deployer
   namespace: task-calendar
+
 subjects:
   - kind: User
     name: github-actions-deployer@task-calendar-515012.iam.gserviceaccount.com
     apiGroup: rbac.authorization.k8s.io
+
 roleRef:
   kind: Role
   name: github-actions-deployer

@@ -32,12 +32,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the exact commit that passed CI
+      - name: Checkout deployment configuration
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      # Prevent deployment of an outdated commit
+      - name: Verify commit is current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          CURRENT_SHA=$(gh api "repos/${GH_REPO}/branches/main" \
+            --jq '.commit.sha')
+
+          echo "CI commit: $EXPECTED_SHA"
+          echo "Current main: $CURRENT_SHA"
+
+          if [ "$EXPECTED_SHA" != "$CURRENT_SHA" ]; then
+            echo "Skipping deployment: a newer commit exists on main."
+            exit 1
+          fi
+
+          echo "Commit verified. Continuing deployment."
+
+      # Authenticate using Workload Identity Federation
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/1010306594671/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: github-actions-deployer@task-calendar-515012.iam.gserviceaccount.com
 
+      # Connect to the GKE cluster
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v3
         with:
@@ -45,14 +76,64 @@ jobs:
           location: europe-west3-a
           project_id: task-calendar-515012
 
+      # Install kubectl
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
 
+      # Verify cluster and existing deployments
       - name: Verify deployment target
         run: |
           kubectl config current-context
           kubectl -n task-calendar get deployments backend frontend
 
+      # Run database migrations before deploying backend
+      - name: Run database migrations
+        env:
+          BACKEND_IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          JOB_NAME="alembic-migration-${RUN_ID}-${RUN_ATTEMPT}"
+
+          echo "Migration Job: ${JOB_NAME}"
+          echo "Backend image: ${BACKEND_IMAGE}"
+
+          sed \
+            -e "s/name: alembic-migration$/name: ${JOB_NAME}/" \
+            -e "s|BACKEND_IMAGE_PLACEHOLDER|${BACKEND_IMAGE}|g" \
+            infrastructure/kubernetes/alembic-migration-job.yaml \
+            > /tmp/alembic-migration-job.yaml
+
+          kubectl -n task-calendar create \
+            -f /tmp/alembic-migration-job.yaml
+
+          if ! kubectl -n task-calendar wait \
+            --for=condition=complete \
+            "job/${JOB_NAME}" \
+            --timeout=360s; then
+
+            echo "Database migration failed or timed out."
+
+            kubectl -n task-calendar describe \
+              "job/${JOB_NAME}" || true
+
+            kubectl -n task-calendar logs \
+              "job/${JOB_NAME}" \
+              --all-containers=true \
+              --tail=100 || true
+
+            exit 1
+          fi
+
+          echo "Database migrations completed successfully."
+
+          kubectl -n task-calendar logs \
+            "job/${JOB_NAME}" \
+            --all-containers=true
+
+      # Deploy backend only after successful migrations
       - name: Deploy backend
         env:
           IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
@@ -60,6 +141,7 @@ jobs:
           kubectl -n task-calendar set image deployment/backend backend="$IMAGE"
           kubectl -n task-calendar rollout status deployment/backend --timeout=180s
 
+      # Deploy frontend
       - name: Deploy frontend
         env:
           IMAGE: ghcr.io/greeegoryy/task-calendar-frontend:${{ github.event.workflow_run.head_sha }}
@@ -67,6 +149,7 @@ jobs:
           kubectl -n task-calendar set image deployment/frontend frontend="$IMAGE"
           kubectl -n task-calendar rollout status deployment/frontend --timeout=180s
 
+      # Verify final deployment state
       - name: Verify deployments
         run: |
           kubectl -n task-calendar get deployments backend frontend
