@@ -1,0 +1,23 @@
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dailyflow-ingress
+  namespace: task-calendar
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "dailyflow-https-ip"
+    networking.gke.io/managed-certificates: "dailyflow-certificate"
+    networking.gke.io/v1beta1.FrontendConfig: "dailyflow-frontend-config"
+spec:
+  rules:
+    - host: dailyflow-app.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: frontend-https
+                port:
+                  number: 80

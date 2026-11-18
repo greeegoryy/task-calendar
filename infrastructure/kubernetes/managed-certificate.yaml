@@ -1,0 +1,8 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: dailyflow-certificate
+  namespace: task-calendar
+spec:
+  domains:
+    - dailyflow-app.duckdns.org
