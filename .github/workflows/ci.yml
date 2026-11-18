@@ -13,6 +13,10 @@ permissions:
   packages: write
 
 jobs:
+
+  # =========================
+  # FRONTEND
+  # =========================
   frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
@@ -34,34 +38,80 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+  # =========================
+  # BACKEND
+  # =========================
   backend:
-    name: Check Backend
+    name: Test Backend
     runs-on: ubuntu-latest
 
+    # Temporary PostgreSQL database for integration tests
+    services:
+      postgres:
+        image: postgres:17-alpine
+
+        env:
+          POSTGRES_USER: calendar
+          POSTGRES_PASSWORD: calendar_test_password
+          POSTGRES_DB: calendar_test
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U calendar -d calendar_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Both variables point to the isolated test database
+    env:
+      DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
+      TEST_DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
+
     steps:
+      # Download repository
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Install Python 3.12
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
+      # Install backend dependencies
       - name: Install dependencies
         working-directory: ./backend
         run: pip install -r requirements.txt
 
+      # Validate Python syntax
       - name: Check Python syntax
         run: python -m compileall -q backend/app
-        
-      - name: Run backend tests
-        working-directory: ./backend
-        run: python -m pytest -v 
 
-  
+      # Run unit tests
+      - name: Run unit tests
+        working-directory: ./backend
+        run: python -m pytest tests/test_api.py -v
+
+      # Create database schema using Alembic
+      - name: Apply Alembic migrations
+        working-directory: ./backend
+        run: python -m alembic upgrade head
+
+      # Run integration tests against PostgreSQL
+      - name: Run integration tests
+        working-directory: ./backend
+        run: python -m pytest tests/test_integration.py -v
+
+  # =========================
+  # DOCKER BUILD & PUSH
+  # =========================
   docker:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
+
+    # Docker builds start only after frontend and backend pass
     needs: [frontend, backend]
 
     permissions:
@@ -109,4 +159,3 @@ jobs:
           tags: |
             ${{ steps.images.outputs.backend }}:latest
             ${{ steps.images.outputs.backend }}:${{ github.sha }}
-   
