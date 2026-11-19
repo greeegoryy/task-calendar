@@ -7,12 +7,13 @@ metadata:
 
 spec:
   replicas: 1
+
   strategy:
     type: Recreate
+
   selector:
     matchLabels:
       app: backend
- 
 
   template:
     metadata:
@@ -25,23 +26,35 @@ spec:
 
       containers:
         - name: backend
-          image: ghcr.io/greeegoryy/task-calendar-backend:8d50979dd4b16e3ec6370a12521481b424e119db
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/greeegoryy/task-calendar-backend:latest
+          imagePullPolicy: Always
 
           ports:
             - containerPort: 8000
 
           env:
+            # PostgreSQL connection
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: backend-secret
                   key: database-url
 
+            # Temporary SMTP configuration
+            - name: SMTP_HOST
+              value: "localhost"
+
+            - name: SMTP_PORT
+              value: "1025"
+
+            - name: SMTP_FROM_EMAIL
+              value: "noreply@dailyflow.local"
+
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
+
             limits:
               cpu: 500m
               memory: 512Mi
