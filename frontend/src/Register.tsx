@@ -25,7 +25,6 @@ export default function Register({
     event: FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-
     setLoading(true);
     setError('');
 
@@ -57,79 +56,131 @@ export default function Register({
   };
 
   return (
-    <div className="shell">
-      <header>
-        <div>
-          <span className="eyebrow">
-            PERSONAL PRODUCTIVITY
-          </span>
-          <h1>DailyFlow</h1>
-          <p>Utwórz konto i zacznij planować swój dzień.</p>
+    <div className="auth-page">
+      <aside className="auth-hero">
+        <div className="auth-brand">
+          <span className="auth-brand-icon">✓</span>
+          <span>DailyFlow</span>
         </div>
-      </header>
 
-      <main>
-        <section
-          className="modal"
-          style={{
-            maxWidth: 440,
-            margin: '48px auto'
-          }}
-        >
+        <div className="auth-hero-content">
+          <span className="auth-hero-eyebrow">
+            YOUR PERSONAL PRODUCTIVITY SPACE
+          </span>
+
+          <h1>
+            A better day
+            <br />
+            starts with a plan.
+          </h1>
+
+          <p>
+            Dołącz do DailyFlow i zacznij organizować
+            swoje zadania w jednym miejscu.
+          </p>
+
+          <div className="auth-benefits">
+            <div><span>✓</span> Twój osobisty kalendarz</div>
+            <div><span>✓</span> Wszystkie zadania w jednym miejscu</div>
+            <div><span>✓</span> Więcej kontroli nad swoim czasem</div>
+          </div>
+
+          <div className="auth-preview" aria-hidden="true">
+            <div className="auth-preview-top">
+              <span>My week</span>
+              <span>November 2026</span>
+            </div>
+
+            <div className="auth-preview-grid">
+              {['MON', 'TUE', 'WED', 'THU', 'FRI'].map(day => (
+                <div key={day} className="auth-preview-day">
+                  <span>{day}</span>
+                  <i />
+                  <i />
+                </div>
+              ))}
+            </div>
+
+            <div className="auth-preview-task">
+              <span className="auth-preview-dot" />
+              Small steps. Big results.
+            </div>
+          </div>
+        </div>
+
+        <div className="auth-hero-footer">
+          Plan your day. Own your time.
+        </div>
+      </aside>
+
+      <main className="auth-content">
+        <div className="auth-mobile-brand">DailyFlow</div>
+
+        <section className="auth-card">
           {success ? (
-            <>
+            <div className="auth-success">
+              <div className="auth-success-icon">✓</div>
               <h2>Sprawdź swoją skrzynkę e-mail</h2>
-
               <p>
                 Jeśli rejestracja może zostać zrealizowana,
                 otrzymasz wiadomość z linkiem aktywacyjnym.
               </p>
-
               <p>
                 Kliknij link i ustaw hasło do swojego konta.
               </p>
-
               <button
+                className="auth-submit"
                 type="button"
-                className="primary"
                 onClick={onLoginClick}
               >
                 Wróć do logowania
               </button>
-            </>
+            </div>
           ) : (
             <>
-              <h2>Utwórz konto</h2>
+              <div className="auth-card-header">
+                <span className="auth-card-eyebrow">
+                  GET STARTED
+                </span>
+                <h2>Utwórz konto DailyFlow</h2>
+                <p>
+                  Zacznij planować swój dzień.
+                  To zajmie tylko chwilę.
+                </p>
+              </div>
 
-              <form onSubmit={handleSubmit}>
-                <label>
-                  Imię
-                  <input
-                    type="text"
-                    autoComplete="given-name"
-                    required
-                    maxLength={100}
-                    value={firstName}
-                    onChange={event =>
-                      setFirstName(event.target.value)
-                    }
-                    placeholder="Twoje imię"
-                  />
-                </label>
+              <form
+                onSubmit={handleSubmit}
+                className="auth-form"
+              >
+                <label htmlFor="register-name">Imię</label>
+                <input
+                  id="register-name"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  maxLength={100}
+                  value={firstName}
+                  onChange={event =>
+                    setFirstName(event.target.value)
+                  }
+                  placeholder="Twoje imię"
+                />
 
-                <label>
+                <label htmlFor="register-email">
                   Adres e-mail
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={event =>
-                      setEmail(event.target.value)
-                    }
-                    placeholder="twoj@email.com"
-                  />
                 </label>
+                <input
+                  id="register-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={event =>
+                    setEmail(event.target.value)
+                  }
+                  placeholder="twoj@email.com"
+                />
 
                 {error && (
                   <div className="error" role="alert">
@@ -137,30 +188,33 @@ export default function Register({
                   </div>
                 )}
 
-                <div className="actions">
-                  <button
-                    type="submit"
-                    className="primary"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? 'Wysyłanie...'
-                      : 'Zarejestruj się'}
-                  </button>
-                </div>
+                <button
+                  className="auth-submit"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading
+                    ? 'Wysyłanie...'
+                    : 'Utwórz konto'}
+                </button>
               </form>
 
-              <p>Masz już konto?</p>
-
-              <button
-                type="button"
-                onClick={onLoginClick}
-              >
-                Zaloguj się
-              </button>
+              <div className="auth-switch">
+                Masz już konto?
+                <button
+                  type="button"
+                  onClick={onLoginClick}
+                >
+                  Zaloguj się
+                </button>
+              </div>
             </>
           )}
         </section>
+
+        <div className="auth-content-footer">
+          © DailyFlow · Make every day count.
+        </div>
       </main>
     </div>
   );
