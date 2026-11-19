@@ -21,3 +21,5 @@ __pycache__/
 # Database backups
 *.dump
 
+# Local backup files
+*.backup

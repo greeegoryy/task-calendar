@@ -18,6 +18,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://calendar:${POSTGRES_PASSWORD:-local_dev_password}@db:5432/calendar
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM_EMAIL: noreply@dailyflow.local
+      COOKIE_SECURE: "false"
     depends_on:
       db:
         condition: service_healthy
@@ -36,5 +40,14 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:3000:80"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+     - "127.0.0.1:8025:8025"
+    expose:
+     - "1025"
+
 volumes:
   postgres_data:

@@ -1,8 +1,13 @@
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from app.csrf import check_csrf
 from app.database import engine
+from app.routers.admin import router as admin_router
+from app.routers.auth import router as auth_router
 from app.routers.tasks import router as tasks_router
 
 
@@ -17,14 +22,43 @@ app = FastAPI(
 
 
 # =========================
+# CSRF PROTECTION
+# =========================
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    try:
+        check_csrf(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
+    return await call_next(request)
+
+
+# =========================
 # CORS CONFIGURATION
 # =========================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"]
+    allow_origins=[
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+    ],
+    allow_headers=[
+        "Content-Type",
+        "X-CSRF-Token",
+    ],
 )
 
 
@@ -45,3 +79,5 @@ def health():
 # =========================
 
 app.include_router(tasks_router)
+app.include_router(auth_router)
+app.include_router(admin_router)

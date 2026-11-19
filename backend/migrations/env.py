@@ -1,22 +1,32 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
+from alembic import context
 
 from app.database import Base, DATABASE_URL
-from app.models.task import Task  # Register the Task model
+
+
+# Register SQLAlchemy models
+from app.models.task import Task
+from app.models.user import User
+from app.models.activation_token import ActivationToken
+from app.models.user_session import UserSession
+from app.models.audit_log import AuditLog
+
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
 # Use the same database URL as FastAPI
 config.set_main_option(
     "sqlalchemy.url",
     DATABASE_URL.replace("%", "%%")
 )
+
 
 # SQLAlchemy metadata used by Alembic
 target_metadata = Base.metadata

@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,13 @@ class Task(Base):
         PG_UUID(as_uuid=True),
         primary_key=True,
         default=uuid4
+    )
+
+    user_id: Mapped[UUID | None] = mapped_column(
+    PG_UUID(as_uuid=True),
+    ForeignKey("users.id"),
+    nullable=True,
+    index=True
     )
 
     title: Mapped[str] = mapped_column(
