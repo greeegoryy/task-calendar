@@ -4,8 +4,10 @@ name: Task Calendar CI
 on:
   push:
     branches: [main]
+
   pull_request:
     branches: [main]
+
   workflow_dispatch:
 
 permissions:
@@ -68,6 +70,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
       TEST_DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
+
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       SMTP_FROM_EMAIL: noreply@dailyflow.local
@@ -92,20 +95,15 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q backend/app
 
-      # Run unit tests
-      - name: Run unit tests
-        working-directory: ./backend
-        run: python -m pytest tests/test_api.py -v
-
       # Create database schema using Alembic
       - name: Apply Alembic migrations
         working-directory: ./backend
         run: python -m alembic upgrade head
 
-      # Run integration tests against PostgreSQL
-      - name: Run integration tests
+      # Run all backend tests
+      - name: Run backend tests
         working-directory: ./backend
-        run: python -m pytest tests/test_integration.py -v
+        run: python -m pytest tests/ -v
 
   # =========================
   # DOCKER BUILD & PUSH
