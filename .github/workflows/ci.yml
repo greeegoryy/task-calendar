@@ -64,13 +64,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # Both variables point to the isolated test database
+    # Environment variables for backend tests
     env:
-       DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
-       TEST_DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
-       SMTP_HOST: localhost
-       SMTP_PORT: "1025"
-       SMTP_FROM_EMAIL: noreply@dailyflow.local
+      DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
+      TEST_DATABASE_URL: postgresql+psycopg://calendar:calendar_test_password@localhost:5432/calendar_test
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_FROM_EMAIL: noreply@dailyflow.local
 
     steps:
       # Download repository
