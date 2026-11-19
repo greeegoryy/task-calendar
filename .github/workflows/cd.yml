@@ -83,6 +83,8 @@ jobs:
       # Verify cluster and existing deployments
       - name: Verify deployment target
         run: |
+          set -euo pipefail
+
           kubectl config current-context
           kubectl -n task-calendar get deployments backend frontend
 
@@ -133,24 +135,61 @@ jobs:
             "job/${JOB_NAME}" \
             --all-containers=true
 
-      # Deploy backend only after successful migrations
+      # Apply backend configuration and deploy tested image
       - name: Deploy backend
         env:
-          IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
+          BACKEND_IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
         run: |
-          kubectl -n task-calendar set image deployment/backend backend="$IMAGE"
-          kubectl -n task-calendar rollout status deployment/backend --timeout=180s
+          set -euo pipefail
+
+          # Validate the backend manifest
+          kubectl apply --dry-run=client \
+            -f infrastructure/kubernetes/backend.yaml
+
+          # Apply Deployment configuration and Service
+          kubectl apply \
+            -f infrastructure/kubernetes/backend.yaml
+
+          # Replace default image with the tested SHA
+          kubectl -n task-calendar set image \
+            deployment/backend \
+            backend="${BACKEND_IMAGE}"
+
+          # Wait for the backend to become healthy
+          kubectl -n task-calendar rollout status \
+            deployment/backend \
+            --timeout=180s
 
       # Deploy frontend
       - name: Deploy frontend
         env:
           IMAGE: ghcr.io/greeegoryy/task-calendar-frontend:${{ github.event.workflow_run.head_sha }}
         run: |
-          kubectl -n task-calendar set image deployment/frontend frontend="$IMAGE"
-          kubectl -n task-calendar rollout status deployment/frontend --timeout=180s
+          set -euo pipefail
+
+          kubectl -n task-calendar set image \
+            deployment/frontend \
+            frontend="${IMAGE}"
+
+          kubectl -n task-calendar rollout status \
+            deployment/frontend \
+            --timeout=180s
 
       # Verify final deployment state
       - name: Verify deployments
         run: |
+          set -euo pipefail
+
           kubectl -n task-calendar get deployments backend frontend
           kubectl -n task-calendar get pods
+
+          echo "Backend image:"
+          kubectl -n task-calendar get deployment backend \
+            -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+          echo ""
+          echo "Frontend image:"
+          kubectl -n task-calendar get deployment frontend \
+            -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+          echo ""
