@@ -135,25 +135,31 @@ jobs:
             "job/${JOB_NAME}" \
             --all-containers=true
 
-      # Apply backend configuration and deploy tested image
+      # Render and deploy backend manifest using tested image
       - name: Deploy backend
         env:
           BACKEND_IMAGE: ghcr.io/greeegoryy/task-calendar-backend:${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
-          # Validate the backend manifest
+          echo "Preparing backend manifest."
+          echo "Backend image: ${BACKEND_IMAGE}"
+
+          sed \
+            "s|image: ghcr.io/greeegoryy/task-calendar-backend:latest|image: ${BACKEND_IMAGE}|" \
+            infrastructure/kubernetes/backend.yaml \
+            > /tmp/backend.yaml
+
+          # Verify that the expected image was inserted
+          grep -Fq "image: ${BACKEND_IMAGE}" /tmp/backend.yaml
+
+          # Validate the generated manifest
           kubectl apply --dry-run=client \
-            -f infrastructure/kubernetes/backend.yaml
+            -f /tmp/backend.yaml
 
-          # Apply Deployment configuration and Service
+          # Apply configuration and tested image together
           kubectl apply \
-            -f infrastructure/kubernetes/backend.yaml
-
-          # Replace default image with the tested SHA
-          kubectl -n task-calendar set image \
-            deployment/backend \
-            backend="${BACKEND_IMAGE}"
+            -f /tmp/backend.yaml
 
           # Wait for the backend to become healthy
           kubectl -n task-calendar rollout status \

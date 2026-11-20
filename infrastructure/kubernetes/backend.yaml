@@ -40,15 +40,39 @@ spec:
                   name: backend-secret
                   key: database-url
 
-            # Temporary SMTP configuration
+            # Production application URL
+            - name: APP_BASE_URL
+              value: "https://dailyflow-app.duckdns.org"
+
+            # CSRF protection
+            - name: ALLOWED_ORIGINS
+              value: "https://dailyflow-app.duckdns.org"
+
+            # Gmail SMTP configuration
             - name: SMTP_HOST
-              value: "localhost"
+              value: "smtp.gmail.com"
 
             - name: SMTP_PORT
-              value: "1025"
+              value: "587"
 
+            # SMTP credentials
             - name: SMTP_FROM_EMAIL
-              value: "noreply@dailyflow.local"
+              valueFrom:
+                secretKeyRef:
+                  name: dailyflow-smtp
+                  key: from-email
+
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dailyflow-smtp
+                  key: username
+
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dailyflow-smtp
+                  key: password
 
           resources:
             requests:
