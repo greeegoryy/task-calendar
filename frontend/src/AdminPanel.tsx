@@ -1,7 +1,12 @@
-
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, ApiError } from './api';
+
+import AdminTasks from './AdminTasks';
+import AdminAuditLogs from './AdminAuditLogs';
+
+import './admin.css';
+
 
 type AdminUser = {
   id: string;
@@ -17,56 +22,127 @@ type AdminPanelProps = {
   onSessionExpired: () => void;
 };
 
+type AdminTab = 'users' | 'tasks' | 'audit';
+
+const TABS: {
+  id: AdminTab;
+  label: string;
+}[] = [
+  {
+    id: 'users',
+    label: 'Użytkownicy'
+  },
+  {
+    id: 'tasks',
+    label: 'Zadania'
+  },
+  {
+    id: 'audit',
+    label: 'Historia aktywności'
+  }
+];
+
+
 export default function AdminPanel({
   currentUserId,
   onSessionExpired
 }: AdminPanelProps) {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] =
+    useState<AdminTab>('users');
+
+  const [users, setUsers] =
+    useState<AdminUser[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [savingId, setSavingId] =
+    useState<string | null>(null);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [accessRevoked, setAccessRevoked] =
+    useState(false);
+
+
+  // =========================
+  // LOAD USERS
+  // =========================
+
   const loadUsers = useCallback(async () => {
+
     setLoading(true);
     setError('');
 
     try {
+
       const data = await apiRequest<AdminUser[]>(
         '/admin/users'
       );
 
       setUsers(data);
+
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        onSessionExpired();
-        return;
+
+      if (err instanceof ApiError) {
+
+        if (err.status === 401) {
+          onSessionExpired();
+          return;
+        }
+
+        if (err.status === 403) {
+          setAccessRevoked(true);
+
+          setError(
+            'Nie masz uprawnień administratora.'
+          );
+
+          return;
+        }
+
       }
 
-      if (err instanceof ApiError && err.status === 403) {
-        setError(
-          'Nie masz już uprawnień administratora.'
-        );
-        return;
-      }
+      setError(
+        'Nie udało się pobrać użytkowników.'
+      );
 
-      setError('Nie udało się pobrać użytkowników.');
     } finally {
+
       setLoading(false);
+
     }
+
   }, [onSessionExpired]);
 
+
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+
+    if (activeTab === 'users' && !accessRevoked) {
+      void loadUsers();
+    }
+
+  }, [activeTab, accessRevoked, loadUsers]);
+
+
+  // =========================
+  // CHANGE USER ROLE
+  // =========================
 
   const changeRole = async (target: AdminUser) => {
+
+    if (savingId !== null || accessRevoked) {
+      return;
+    }
+
     const newRole = !target.is_admin;
 
     const confirmed = window.confirm(
       newRole
-        ? `Czy nadać uprawnienia administratora użytkownikowi ${target.email}?`
-        : `Czy odebrać uprawnienia administratora użytkownikowi ${target.email}?`
+        ? `Nadać uprawnienia administratora użytkownikowi ${target.email}?`
+        : `Odebrać uprawnienia administratora użytkownikowi ${target.email}?`
     );
 
     if (!confirmed) {
@@ -78,6 +154,7 @@ export default function AdminPanel({
     setSuccess('');
 
     try {
+
       const updatedUser = await apiRequest<AdminUser>(
         `/admin/users/${target.id}/role`,
         {
@@ -90,9 +167,26 @@ export default function AdminPanel({
 
       setUsers(previous =>
         previous.map(user =>
-          user.id === updatedUser.id ? updatedUser : user
+          user.id === updatedUser.id
+            ? updatedUser
+            : user
         )
       );
+
+      if (
+        updatedUser.id === currentUserId &&
+        !updatedUser.is_admin
+      ) {
+
+        setAccessRevoked(true);
+
+        setError(
+          'Twoje uprawnienia administratora zostały odebrane. Wróć do kalendarza.'
+        );
+
+        return;
+
+      }
 
       setSuccess(
         newRole
@@ -100,47 +194,106 @@ export default function AdminPanel({
           : `Odebrano uprawnienia administratora: ${target.email}`
       );
 
-      if (
-        updatedUser.id === currentUserId &&
-        !updatedUser.is_admin
-      ) {
-        setSuccess('');
-        setError(
-          'Twoje uprawnienia administratora zostały odebrane. Wróć do kalendarza.'
-        );
-      }
     } catch (err) {
+
       if (err instanceof ApiError) {
+
         if (err.status === 401) {
           onSessionExpired();
           return;
         }
 
         if (err.status === 403) {
+
+          setAccessRevoked(true);
+
           setError(
-            'Nie masz uprawnień do wykonania tej operacji.'
+            'Nie masz uprawnień administratora.'
           );
+
           return;
+
         }
 
         if (err.status === 409) {
+
           setError(
             'Nie można odebrać uprawnień ostatniemu aktywnemu administratorowi.'
           );
+
           return;
+
         }
+
+        if (err.status === 400) {
+
+          setError(
+            'Nie można nadać uprawnień nieaktywnemu użytkownikowi.'
+          );
+
+          return;
+
+        }
+
+        if (err.status === 404) {
+
+          setError(
+            'Wybrany użytkownik już nie istnieje.'
+          );
+
+          return;
+
+        }
+
       }
 
-      setError('Nie udało się zmienić uprawnień użytkownika.');
+      setError(
+        'Nie udało się zmienić uprawnień użytkownika.'
+      );
+
     } finally {
+
       setSavingId(null);
+
     }
+
   };
 
+
+  // =========================
+  // CHANGE TAB
+  // =========================
+
+  const changeTab = (tab: AdminTab) => {
+
+    setError('');
+    setSuccess('');
+    setActiveTab(tab);
+
+  };
+
+
+  const activeUsers = users.filter(
+    user => user.is_active
+  ).length;
+
+  const administrators = users.filter(
+    user => user.is_active && user.is_admin
+  ).length;
+
+
+  // =========================
+  // COMPONENT UI
+  // =========================
+
   return (
+
     <div className="shell admin-panel">
+
       <header>
+
         <div>
+
           <div className="eyebrow">
             DAILYFLOW ADMINISTRATION
           </div>
@@ -148,148 +301,357 @@ export default function AdminPanel({
           <h1>Panel administratora</h1>
 
           <p>
-            Zarządzaj użytkownikami i uprawnieniami.
+            Zarządzaj użytkownikami, zadaniami
+            i historią aktywności.
           </p>
+
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadUsers()}
-          disabled={loading || savingId !== null}
-        >
-          Odśwież
-        </button>
       </header>
 
-      {error && (
-        <div className="error" role="alert">
-          {error}
-        </div>
-      )}
 
-      {success && (
-        <div className="admin-success" role="status">
-          {success}
-        </div>
-      )}
+      {accessRevoked ? (
 
-      <main className="admin-content">
-        <div className="admin-section-header">
-          <div>
-            <h2>Użytkownicy</h2>
-            <p>
-              Lista kont zarejestrowanych w DailyFlow.
-            </p>
+        <main className="admin-content">
+
+          <div className="error" role="alert">
+
+            {error || 'Nie masz uprawnień administratora.'}
+
           </div>
 
-          <span className="admin-count">
-            {users.length} użytkowników
-          </span>
-        </div>
+        </main>
 
-        {loading ? (
-          <p>Ładowanie użytkowników...</p>
-        ) : (
-          <div className="admin-table-wrapper">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Użytkownik</th>
-                  <th>Status</th>
-                  <th>Rola</th>
-                  <th>Data rejestracji</th>
-                  <th>Akcje</th>
-                </tr>
-              </thead>
+      ) : (
 
-              <tbody>
-                {users.map(user => (
-                  <tr key={user.id}>
-                    <td>
-                      <div className="admin-user-name">
-                        {user.first_name}
-                        {user.id === currentUserId && (
-                          <span className="admin-self">
-                            Ty
-                          </span>
-                        )}
-                      </div>
+        <>
 
-                      <div className="admin-user-email">
-                        {user.email}
-                      </div>
-                    </td>
+          {/* ADMIN NAVIGATION */}
 
-                    <td>
-                      <span
-                        className={
-                          user.is_active
-                            ? 'admin-status active'
-                            : 'admin-status inactive'
-                        }
-                      >
-                        {user.is_active
-                          ? 'Aktywny'
-                          : 'Nieaktywny'}
-                      </span>
-                    </td>
+          <nav
+            className="admin-tabs"
+            aria-label="Panel administratora"
+          >
 
-                    <td>
-                      <span
-                        className={
-                          user.is_admin
-                            ? 'admin-role administrator'
-                            : 'admin-role'
-                        }
-                      >
-                        {user.is_admin
-                          ? 'Administrator'
-                          : 'Użytkownik'}
-                      </span>
-                    </td>
+            {TABS.map(tab => (
 
-                    <td>
-                      {new Date(
-                        user.created_at
-                      ).toLocaleDateString('pl-PL')}
-                    </td>
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={activeTab === tab.id}
+                disabled={savingId !== null}
+                className={
+                  activeTab === tab.id
+                    ? 'admin-tab selected'
+                    : 'admin-tab'
+                }
+                onClick={() => changeTab(tab.id)}
+              >
+                {tab.label}
+              </button>
 
-                    <td>
-                      <button
-                        type="button"
-                        className={
-                          user.is_admin
-                            ? 'danger'
-                            : 'primary'
-                        }
-                        disabled={
-                          savingId !== null ||
-                          (!user.is_admin && !user.is_active)
-                        }
-                        onClick={() => void changeRole(user)}
-                      >
-                        {savingId === user.id
-                          ? 'Zapisywanie...'
-                          : user.is_admin
-                            ? 'Odbierz admina'
-                            : 'Nadaj admina'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+            ))}
 
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan={5}>
-                      Brak użytkowników do wyświetlenia.
-                    </td>
-                  </tr>
+          </nav>
+
+
+          <main className="admin-content">
+
+            {/* USERS TAB */}
+
+            {activeTab === 'users' && (
+
+              <div className="admin-users">
+
+                <div className="admin-section-header">
+
+                  <div>
+
+                    <h2>Zarządzanie użytkownikami</h2>
+
+                    <p>
+                      Zarządzaj kontami i uprawnieniami
+                      użytkowników DailyFlow.
+                    </p>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loading || savingId !== null}
+                    onClick={() => {
+                      setSuccess('');
+                      void loadUsers();
+                    }}
+                  >
+                    Odśwież
+                  </button>
+
+                </div>
+
+
+                {/* USER STATISTICS */}
+
+                <div className="admin-stats-grid">
+
+                  <div className="admin-stat-card">
+
+                    <span>
+                      Wszyscy użytkownicy
+                    </span>
+
+                    <strong>
+                      {users.length}
+                    </strong>
+
+                  </div>
+
+
+                  <div className="admin-stat-card completed">
+
+                    <span>
+                      Aktywne konta
+                    </span>
+
+                    <strong>
+                      {activeUsers}
+                    </strong>
+
+                  </div>
+
+
+                  <div className="admin-stat-card">
+
+                    <span>
+                      Administratorzy
+                    </span>
+
+                    <strong>
+                      {administrators}
+                    </strong>
+
+                  </div>
+
+                </div>
+
+
+                {error && (
+
+                  <div className="error" role="alert">
+                    {error}
+                  </div>
+
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
+
+
+                {success && (
+
+                  <div
+                    className="admin-success"
+                    role="status"
+                  >
+                    {success}
+                  </div>
+
+                )}
+
+
+                {/* USERS TABLE */}
+
+                {loading ? (
+
+                  <p>Ładowanie użytkowników...</p>
+
+                ) : (
+
+                  <div className="admin-table-wrapper">
+
+                    <table className="admin-table">
+
+                      <thead>
+
+                        <tr>
+
+                          <th>Użytkownik</th>
+                          <th>Status</th>
+                          <th>Rola</th>
+                          <th>Data rejestracji</th>
+                          <th>Akcje</th>
+
+                        </tr>
+
+                      </thead>
+
+
+                      <tbody>
+
+                        {users.map(user => (
+
+                          <tr key={user.id}>
+
+                            <td>
+
+                              <div className="admin-user-name">
+
+                                {user.first_name}
+
+                                {user.id === currentUserId && (
+
+                                  <span className="admin-self">
+                                    Ty
+                                  </span>
+
+                                )}
+
+                              </div>
+
+                              <div className="admin-user-email">
+                                {user.email}
+                              </div>
+
+                            </td>
+
+
+                            <td>
+
+                              <span
+                                className={
+                                  user.is_active
+                                    ? 'admin-status active'
+                                    : 'admin-status inactive'
+                                }
+                              >
+                                {
+                                  user.is_active
+                                    ? 'Aktywne'
+                                    : 'Nieaktywne'
+                                }
+                              </span>
+
+                            </td>
+
+
+                            <td>
+
+                              <span
+                                className={
+                                  user.is_admin
+                                    ? 'admin-role administrator'
+                                    : 'admin-role'
+                                }
+                              >
+                                {
+                                  user.is_admin
+                                    ? 'Administrator'
+                                    : 'Użytkownik'
+                                }
+                              </span>
+
+                            </td>
+
+
+                            <td>
+
+                              {new Date(
+                                user.created_at
+                              ).toLocaleString('pl-PL', {
+                                dateStyle: 'short',
+                                timeStyle: 'short'
+                              })}
+
+                            </td>
+
+
+                            <td>
+
+                              <button
+                                type="button"
+                                className={
+                                  user.is_admin
+                                    ? 'danger'
+                                    : 'primary'
+                                }
+                                disabled={
+                                  savingId !== null ||
+                                  (
+                                    !user.is_active &&
+                                    !user.is_admin
+                                  )
+                                }
+                                onClick={() =>
+                                  void changeRole(user)
+                                }
+                              >
+                                {
+                                  savingId === user.id
+                                    ? 'Zapisywanie...'
+                                    : user.is_admin
+                                      ? 'Odbierz admina'
+                                      : 'Nadaj admina'
+                                }
+                              </button>
+
+                            </td>
+
+                          </tr>
+
+                        ))}
+
+
+                        {users.length === 0 && (
+
+                          <tr>
+
+                            <td colSpan={5}>
+                              Brak użytkowników.
+                            </td>
+
+                          </tr>
+
+                        )}
+
+                      </tbody>
+
+                    </table>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+
+            {/* TASKS TAB */}
+
+            {activeTab === 'tasks' && (
+
+              <AdminTasks
+                onSessionExpired={onSessionExpired}
+              />
+
+            )}
+
+
+            {/* AUDIT LOGS TAB */}
+
+            {activeTab === 'audit' && (
+
+              <AdminAuditLogs
+                onSessionExpired={onSessionExpired}
+              />
+
+            )}
+
+          </main>
+
+        </>
+
+      )}
+
     </div>
+
   );
+
 }

@@ -1,10 +1,9 @@
-
 from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, or_
 from sqlalchemy.orm import Session
 
 from app.admin_auth import get_current_admin
@@ -12,6 +11,7 @@ from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.task import Task
 from app.models.user import User
+from app.schemas.task import TaskInput
 
 
 router = APIRouter(
@@ -62,6 +62,7 @@ class AdminTaskOut(BaseModel):
     id: UUID
     user_id: UUID | None
     user_email: str | None
+    user_first_name: str | None
     title: str
     description: str
     start: datetime
@@ -75,6 +76,59 @@ class AdminTasksPage(BaseModel):
     limit: int
     offset: int
     items: list[AdminTaskOut]
+
+
+class AdminTaskStats(BaseModel):
+    total: int
+    completed: int
+    pending: int
+
+
+# =========================
+# HELPERS
+# =========================
+
+def lock_admin(
+    db: Session,
+    current_admin: User,
+) -> User:
+    actor = db.scalar(
+        select(User)
+        .where(User.id == current_admin.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+    if (
+        actor is None
+        or not actor.is_active
+        or not actor.is_admin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator privileges required.",
+        )
+
+    return actor
+
+
+def task_response(
+    task: Task,
+    email: str | None,
+    first_name: str | None,
+) -> AdminTaskOut:
+    return AdminTaskOut(
+        id=task.id,
+        user_id=task.user_id,
+        user_email=email,
+        user_first_name=first_name,
+        title=task.title,
+        description=task.description,
+        start=task.start,
+        end=task.end,
+        color=task.color,
+        completed=task.completed,
+    )
 
 
 # =========================
@@ -164,22 +218,7 @@ def update_user_role(
             text("SELECT pg_advisory_xact_lock(22012)")
         )
 
-        actor = db.scalar(
-            select(User)
-            .where(User.id == current_admin.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-
-        if (
-            actor is None
-            or not actor.is_active
-            or not actor.is_admin
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Administrator privileges required.",
-            )
+        actor = lock_admin(db, current_admin)
 
         target_user = db.scalar(
             select(User)
@@ -254,6 +293,33 @@ def update_user_role(
 
 
 # =========================
+# TASK STATISTICS
+# =========================
+
+@router.get(
+    "/tasks/stats",
+    response_model=AdminTaskStats,
+)
+def task_statistics(
+    db: Session = Depends(get_db),
+):
+    total, completed = db.execute(
+        select(
+            func.count(Task.id),
+            func.count(Task.id).filter(
+                Task.completed.is_(True)
+            ),
+        )
+    ).one()
+
+    return AdminTaskStats(
+        total=total,
+        completed=completed,
+        pending=total - completed,
+    )
+
+
+# =========================
 # LIST ALL TASKS
 # =========================
 
@@ -264,15 +330,73 @@ def update_user_role(
 def list_all_tasks(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    search: str | None = Query(default=None, max_length=200),
+    completed: bool | None = None,
+    user_id: UUID | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     db: Session = Depends(get_db),
 ):
-    total = db.scalar(
-        select(func.count()).select_from(Task)
-    ) or 0
+    filters = []
+
+    if search and search.strip():
+        term = search.strip()
+
+        filters.append(
+            or_(
+                Task.title.icontains(term, autoescape=True),
+                Task.description.icontains(term, autoescape=True),
+                User.email.icontains(term, autoescape=True),
+                User.first_name.icontains(term, autoescape=True),
+            )
+        )
+
+    if completed is not None:
+        filters.append(
+            Task.completed.is_(completed)
+        )
+
+    if user_id is not None:
+        filters.append(
+            Task.user_id == user_id
+        )
+
+    for value in (date_from, date_to):
+        if value is not None and value.utcoffset() is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Dates must include a timezone offset.",
+            )
+
+    if (
+        date_from is not None
+        and date_to is not None
+        and date_from >= date_to
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="date_to must be after date_from.",
+        )
+
+    if date_from is not None:
+        filters.append(Task.start >= date_from)
+
+    if date_to is not None:
+        filters.append(Task.start < date_to)
+
+    count_statement = (
+        select(func.count(Task.id))
+        .select_from(Task)
+        .outerjoin(User, Task.user_id == User.id)
+        .where(*filters)
+    )
+
+    total = db.scalar(count_statement) or 0
 
     statement = (
-        select(Task, User.email)
+        select(Task, User.email, User.first_name)
         .outerjoin(User, Task.user_id == User.id)
+        .where(*filters)
         .order_by(
             Task.start.desc(),
             Task.id.desc(),
@@ -284,18 +408,8 @@ def list_all_tasks(
     rows = db.execute(statement).all()
 
     items = [
-        AdminTaskOut(
-            id=task.id,
-            user_id=task.user_id,
-            user_email=email,
-            title=task.title,
-            description=task.description,
-            start=task.start,
-            end=task.end,
-            color=task.color,
-            completed=task.completed,
-        )
-        for task, email in rows
+        task_response(task, email, first_name)
+        for task, email, first_name in rows
     ]
 
     return AdminTasksPage(
@@ -304,6 +418,104 @@ def list_all_tasks(
         offset=offset,
         items=items,
     )
+
+
+# =========================
+# UPDATE ANY TASK
+# =========================
+
+@router.put(
+    "/tasks/{task_id}",
+    response_model=AdminTaskOut,
+)
+def admin_update_task(
+    task_id: UUID,
+    payload: TaskInput,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        actor = lock_admin(db, current_admin)
+
+        task = db.scalar(
+            select(Task)
+            .where(Task.id == task_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+        if task is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found.",
+            )
+
+        owner_email = None
+        owner_first_name = None
+
+        if task.user_id is not None:
+            owner = db.get(User, task.user_id)
+
+            if owner is not None:
+                owner_email = owner.email
+                owner_first_name = owner.first_name
+
+        changes = {}
+
+        for key, value in payload.model_dump().items():
+            old_value = getattr(task, key)
+
+            if old_value != value:
+                changes[key] = {
+                    "old": (
+                        old_value.isoformat()
+                        if isinstance(old_value, datetime)
+                        else old_value
+                    ),
+                    "new": (
+                        value.isoformat()
+                        if isinstance(value, datetime)
+                        else value
+                    ),
+                }
+
+                setattr(task, key, value)
+
+        if changes:
+            db.add(
+                AuditLog(
+                    user_id=actor.id,
+                    action="ADMIN_TASK_UPDATED",
+                    resource_type="task",
+                    resource_id=task.id,
+                    details={
+                        "result": "success",
+                        "task_owner_id": (
+                            str(task.user_id)
+                            if task.user_id is not None
+                            else None
+                        ),
+                        "task_owner_email": owner_email,
+                        "changed_fields": list(changes.keys()),
+                    },
+                )
+            )
+
+        db.flush()
+
+        result = task_response(
+            task,
+            owner_email,
+            owner_first_name,
+        )
+
+        db.commit()
+
+        return result
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 # =========================
@@ -320,29 +532,13 @@ def admin_delete_task(
     db: Session = Depends(get_db),
 ):
     try:
-        # Lock and re-check administrator permissions.
-        actor = db.scalar(
-            select(User)
-            .where(User.id == current_admin.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
+        actor = lock_admin(db, current_admin)
 
-        if (
-            actor is None
-            or not actor.is_active
-            or not actor.is_admin
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Administrator privileges required.",
-            )
-
-        # Lock the task before deleting it.
         task = db.scalar(
             select(Task)
             .where(Task.id == task_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
 
         if task is None:
@@ -351,7 +547,6 @@ def admin_delete_task(
                 detail="Task not found.",
             )
 
-        # Save relevant data before deletion.
         task_owner_id = task.user_id
         task_title = task.title
 
@@ -363,7 +558,6 @@ def admin_delete_task(
                 .where(User.id == task_owner_id)
             )
 
-        # Record who deleted the task and who owned it.
         db.add(
             AuditLog(
                 user_id=actor.id,
