@@ -199,3 +199,8 @@ jobs:
             -o jsonpath='{.spec.template.spec.containers[0].image}'
 
           echo ""
+
+      - name: Smoke test through public HTTPS
+        env:
+          DAILYFLOW_URL: https://dailyflow-app.duckdns.org
+        run: bash scripts/smoke-test.sh "$DAILYFLOW_URL"

@@ -2,6 +2,14 @@
 
 Kalendarz zadań z logowaniem, aktywacją konta przez e-mail, panelem administratora i dziennikiem audytu. Frontend korzysta z React i FullCalendar, a API z FastAPI i PostgreSQL.
 
+## DailyFlow jako projekt DevOps
+
+GitHub Actions buduje obrazy frontendu i backendu, testuje migracje na PostgreSQL i publikuje obrazy w GitHub Container Registry. Wdrożenie na GKE używa tagów powiązanych z commitem, osobnego zadania migracji Alembic i weryfikacji stanu obu Deploymentów. Pipeline uzyskuje dostęp do GCP przez Workload Identity Federation.
+
+| Dokument | Zawartość |
+| --- | --- |
+| [Architektura DevOps](docs/devops.md) | Przepływ wdrożenia, diagnostyka i architektura GKE |
+
 ## Uruchomienie lokalne
 
 Potrzebujesz Dockera z Compose. Na Windows użyj Docker Desktop z silnikiem WSL 2.
@@ -18,7 +26,3 @@ Dokumentacja API jest dostępna pod adresem http://localhost:8000/docs. Frontend
 - `docker compose logs migrate backend` pokazuje logi migracji i API.
 - `docker compose down` zatrzymuje aplikację i zachowuje dane.
 - `docker compose down -v` usuwa także wolumen z danymi.
-
-## Wdrożenie
-
-GitHub Actions buduje frontend, uruchamia testy backendu na PostgreSQL i publikuje obrazy po zmianach na `main`. CD stosuje migracje przed wdrożeniem na GKE. Manifesty produkcyjne są w `infrastructure/kubernetes`.

@@ -1,0 +1,106 @@
+name: DailyFlow rollback drill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CLUSTER: dailyflow-drill
+      GOOD_IMAGE: dailyflow-frontend:drill-good
+      BAD_IMAGE: dailyflow-frontend:drill-bad
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Isolate Kubernetes credentials
+        run: echo "KUBECONFIG=$RUNNER_TEMP/dailyflow-drill.kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Build frontend and exercise rollback on kind
+        shell: bash
+        run: |
+          kind create cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG" --wait 120s
+
+          docker build -t "$GOOD_IMAGE" frontend
+          docker build -t "$BAD_IMAGE" - <<'DOCKERFILE'
+          FROM dailyflow-frontend:drill-good
+          RUN sed -i 's|location /health .*|location /health { return 503; }|' /etc/nginx/conf.d/default.conf
+          DOCKERFILE
+          kind load docker-image --name "$CLUSTER" "$GOOD_IMAGE" "$BAD_IMAGE"
+
+          kubectl create deployment backend --image=busybox:1.37 --port=8000 -- /bin/sh -ec \
+            'mkdir -p /www; printf "%s" "{\"status\":\"ok\"}" > /www/health; exec httpd -f -p 8000 -h /www'
+          kubectl expose deployment backend --port=8000
+          kubectl rollout status deployment/backend --timeout=180s
+
+          kubectl create deployment frontend --image="$GOOD_IMAGE" --port=80
+          kubectl rollout status deployment/frontend --timeout=120s
+
+          start_forward() {
+            kubectl port-forward deployment/frontend 18080:80 > "$RUNNER_TEMP/dailyflow-forward.log" 2>&1 &
+            forward_pid=$!
+          }
+
+          stop_forward() {
+            kill "$forward_pid" 2>/dev/null || true
+            wait "$forward_pid" 2>/dev/null || true
+            forward_pid=
+          }
+
+          trap 'if [[ -n ${forward_pid:-} ]]; then stop_forward; fi' EXIT
+          url=http://127.0.0.1:18080
+
+          start_forward
+          bash scripts/smoke-test.sh "$url"
+          stop_forward
+
+          kubectl set image deployment/frontend "*=$BAD_IMAGE"
+          kubectl rollout status deployment/frontend --timeout=120s
+
+          start_forward
+          # Confirm the failure is the injected 503, rather than a broken port-forward.
+          status=$(curl --silent --show-error --retry 5 --retry-connrefused \
+            --retry-delay 1 --retry-max-time 15 --max-time 5 --head \
+            --output /dev/null --write-out '%{http_code}' "$url/health")
+          if [[ "$status" != 503 ]]; then
+            echo "Expected bad release to return HTTP 503, got $status" >&2
+            exit 1
+          fi
+          if bash scripts/smoke-test.sh "$url" 1; then
+            echo 'Unexpected smoke-test success on the bad release' >&2
+            exit 1
+          fi
+          stop_forward
+
+          rollback_started=$SECONDS
+          kubectl rollout undo deployment/frontend
+          kubectl rollout status deployment/frontend --timeout=120s
+          restored_image=$(kubectl get deployment frontend -o jsonpath='{.spec.template.spec.containers[0].image}')
+          [[ "$restored_image" == "$GOOD_IMAGE" ]]
+
+          start_forward
+          bash scripts/smoke-test.sh "$url"
+          elapsed=$((SECONDS - rollback_started))
+          {
+            echo '## DailyFlow rollback drill'
+            echo
+            printf -- '- Baseline smoke test passed for `%s`.\n' "$GOOD_IMAGE"
+            echo "- Bad release completed rollout and failed the smoke test with HTTP 503."
+            printf -- '- Rollback restored `%s` and passed the smoke test in %ss.\n' "$restored_image" "$elapsed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect diagnostics
+        if: failure()
+        run: |
+          kubectl get deployments,replicasets,pods -o wide || true
+          kubectl logs deployment/frontend --tail=100 || true
+          cat "$RUNNER_TEMP/dailyflow-forward.log" || true
+
+      - name: Delete the drill cluster
+        if: always()
+        run: kind delete cluster --name "$CLUSTER"
