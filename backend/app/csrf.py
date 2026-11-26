@@ -1,9 +1,9 @@
 
-import os
-
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException, Request
+
+from app.config import ALLOWED_ORIGINS
 
 
 SAFE_METHODS = {
@@ -11,16 +11,6 @@ SAFE_METHODS = {
     "HEAD",
     "OPTIONS",
 }
-
-ALLOWED_ORIGINS = {
-    origin.strip().rstrip("/")
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000",
-    ).split(",")
-    if origin.strip()
-}
-
 
 def check_csrf(request: Request) -> None:
     """

@@ -15,6 +15,7 @@ import type {
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 
 import { apiRequest, ApiError } from './api';
+import { localValue, toLocal } from './dates';
 
 type Task = {
   id: string;
@@ -33,18 +34,6 @@ type Draft = Omit<Task, 'id'> & {
 type TaskCalendarProps = {
   onSessionExpired: () => void;
 };
-
-function toLocal(date: Date): string {
-  const adjusted = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000
-  );
-
-  return adjusted.toISOString().slice(0, 16);
-}
-
-function localValue(iso: string): string {
-  return toLocal(new Date(iso));
-}
 
 function blank(
   start = new Date(),

@@ -460,28 +460,13 @@ def admin_update_task(
                 owner_email = owner.email
                 owner_first_name = owner.first_name
 
-        changes = {}
-
+        changed_fields = []
         for key, value in payload.model_dump().items():
-            old_value = getattr(task, key)
-
-            if old_value != value:
-                changes[key] = {
-                    "old": (
-                        old_value.isoformat()
-                        if isinstance(old_value, datetime)
-                        else old_value
-                    ),
-                    "new": (
-                        value.isoformat()
-                        if isinstance(value, datetime)
-                        else value
-                    ),
-                }
-
+            if getattr(task, key) != value:
                 setattr(task, key, value)
+                changed_fields.append(key)
 
-        if changes:
+        if changed_fields:
             db.add(
                 AuditLog(
                     user_id=actor.id,
@@ -496,7 +481,7 @@ def admin_update_task(
                             else None
                         ),
                         "task_owner_email": owner_email,
-                        "changed_fields": list(changes.keys()),
+                        "changed_fields": changed_fields,
                     },
                 )
             )

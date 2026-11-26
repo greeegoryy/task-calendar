@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, ApiError } from './api';
+import { localValue } from './dates';
 
 
 type AdminTask = {
@@ -41,21 +42,14 @@ type AdminTaskStats = {
 };
 
 type AdminTasksProps = {
+  users: AdminUser[];
+  usersLoading: boolean;
+  usersError: string;
+  loadUsers: () => Promise<void>;
   onSessionExpired: () => void;
 };
 
 const PAGE_SIZE = 20;
-
-
-function localValue(iso: string): string {
-  const date = new Date(iso);
-
-  const adjusted = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000
-  );
-
-  return adjusted.toISOString().slice(0, 16);
-}
 
 
 function formatDate(value: string): string {
@@ -67,11 +61,14 @@ function formatDate(value: string): string {
 
 
 export default function AdminTasks({
+  users,
+  usersLoading,
+  usersError,
+  loadUsers,
   onSessionExpired
 }: AdminTasksProps) {
 
   const [tasks, setTasks] = useState<AdminTask[]>([]);
-  const [users, setUsers] = useState<AdminUser[]>([]);
 
   const [stats, setStats] = useState<AdminTaskStats>({
     total: 0,
@@ -136,26 +133,6 @@ export default function AdminTasks({
     },
     [onSessionExpired]
   );
-
-
-  // =========================
-  // LOAD USERS
-  // =========================
-
-  const loadUsers = useCallback(async () => {
-    try {
-      const data = await apiRequest<AdminUser[]>(
-        '/admin/users'
-      );
-
-      setUsers(data);
-    } catch (err) {
-      handleError(
-        err,
-        'Nie udało się pobrać użytkowników.'
-      );
-    }
-  }, [handleError]);
 
 
   // =========================
@@ -295,9 +272,8 @@ export default function AdminTasks({
 
 
   useEffect(() => {
-    void loadUsers();
     void loadStats();
-  }, [loadUsers, loadStats]);
+  }, [loadStats]);
 
 
   useEffect(() => {
@@ -316,12 +292,7 @@ export default function AdminTasks({
   const refresh = async () => {
     setSuccess('');
 
-    await loadTasks();
-
-    await Promise.all([
-      loadStats(),
-      loadUsers()
-    ]);
+    await Promise.all([loadTasks(), loadStats(), loadUsers()]);
   };
 
 
@@ -523,7 +494,7 @@ export default function AdminTasks({
 
         <button
           type="button"
-          disabled={loading || saving || draft !== null}
+          disabled={loading || usersLoading || saving || draft !== null}
           onClick={() => void refresh()}
         >
           Odśwież
@@ -554,6 +525,10 @@ export default function AdminTasks({
 
 
       {/* MESSAGES */}
+
+      {usersError && (
+        <div className="error" role="alert">{usersError}</div>
+      )}
 
       {error && !draft && (
         <div className="error" role="alert">

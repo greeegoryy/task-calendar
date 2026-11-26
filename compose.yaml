@@ -13,18 +13,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: &database_url postgresql+psycopg://calendar:${POSTGRES_PASSWORD:-local_dev_password}@db:5432/calendar
+    depends_on:
+      db:
+        condition: service_healthy
   backend:
     build: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://calendar:${POSTGRES_PASSWORD:-local_dev_password}@db:5432/calendar
+      DATABASE_URL: *database_url
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       SMTP_FROM_EMAIL: noreply@dailyflow.local
       COOKIE_SECURE: "false"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

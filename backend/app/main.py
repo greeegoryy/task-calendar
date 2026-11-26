@@ -1,11 +1,9 @@
-
-import os
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.config import ALLOWED_ORIGINS
 from app.csrf import check_csrf
 from app.database import engine
 from app.routers.admin import router as admin_router
@@ -44,21 +42,13 @@ async def csrf_middleware(request: Request, call_next):
 # CORS CONFIGURATION
 # =========================
 
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000",
-    ).split(",")
-    if origin.strip()
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=sorted(ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=[
         "GET",
+        "PATCH",
         "POST",
         "PUT",
         "DELETE",

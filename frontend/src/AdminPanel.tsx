@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { apiRequest, ApiError } from './api';
 
@@ -55,7 +55,11 @@ export default function AdminPanel({
     useState<AdminUser[]>([]);
 
   const [loading, setLoading] =
-    useState(true);
+    useState(false);
+
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const usersRequestInFlight = useRef(false);
 
   const [savingId, setSavingId] =
     useState<string | null>(null);
@@ -73,58 +77,35 @@ export default function AdminPanel({
 
   const loadUsers = useCallback(async () => {
 
+    if (usersRequestInFlight.current) return;
+
+    usersRequestInFlight.current = true;
     setLoading(true);
-    setError('');
+    setUsersError('');
 
     try {
-
-      const data = await apiRequest<AdminUser[]>(
-        '/admin/users'
-      );
-
-      setUsers(data);
-
+      setUsers(await apiRequest<AdminUser[]>('/admin/users'));
+      setUsersLoaded(true);
     } catch (err) {
-
-      if (err instanceof ApiError) {
-
-        if (err.status === 401) {
-          onSessionExpired();
-          return;
-        }
-
-        if (err.status === 403) {
-          setAccessRevoked(true);
-
-          setError(
-            'Nie masz uprawnień administratora.'
-          );
-
-          return;
-        }
-
+      if (err instanceof ApiError && err.status === 401) {
+        onSessionExpired();
+      } else if (err instanceof ApiError && err.status === 403) {
+        setError('Nie masz uprawnień administratora.');
+        setAccessRevoked(true);
+      } else {
+        setUsersError('Nie udało się pobrać użytkowników.');
       }
-
-      setError(
-        'Nie udało się pobrać użytkowników.'
-      );
-
     } finally {
-
+      usersRequestInFlight.current = false;
       setLoading(false);
-
     }
-
   }, [onSessionExpired]);
 
-
   useEffect(() => {
-
-    if (activeTab === 'users' && !accessRevoked) {
+    if (activeTab !== 'audit' && !usersLoaded && !accessRevoked) {
       void loadUsers();
     }
-
-  }, [activeTab, accessRevoked, loadUsers]);
+  }, [activeTab, usersLoaded, accessRevoked, loadUsers]);
 
 
   // =========================
@@ -381,6 +362,7 @@ export default function AdminPanel({
                     disabled={loading || savingId !== null}
                     onClick={() => {
                       setSuccess('');
+                      setError('');
                       void loadUsers();
                     }}
                   >
@@ -435,10 +417,10 @@ export default function AdminPanel({
                 </div>
 
 
-                {error && (
+                {(error || usersError) && (
 
                   <div className="error" role="alert">
-                    {error}
+                    {error || usersError}
                   </div>
 
                 )}
@@ -628,6 +610,10 @@ export default function AdminPanel({
             {activeTab === 'tasks' && (
 
               <AdminTasks
+                users={users}
+                usersLoading={loading || savingId !== null}
+                usersError={usersError}
+                loadUsers={loadUsers}
                 onSessionExpired={onSessionExpired}
               />
 
