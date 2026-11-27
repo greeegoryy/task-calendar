@@ -23,10 +23,8 @@ variable "notification_channel_names" {
   description = "Existing Cloud Monitoring channel resource names for the freshness alert."
   type        = list(string)
 
-  validation {
-    condition     = length(var.notification_channel_names) > 0
-    error_message = "Supply at least one existing Cloud Monitoring notification channel."
-  }
+  default = []
+
 }
 
 variable "enable_freshness_alert" {

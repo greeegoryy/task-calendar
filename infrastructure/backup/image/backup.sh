@@ -5,6 +5,18 @@ umask 077
 : "${BACKUP_BUCKET:?BACKUP_BUCKET is required}"
 : "${POD_UID:?POD_UID is required}"
 
+# pg_dump accepts a PostgreSQL URI as --dbname, without the SQLAlchemy suffix.
+case ${DATABASE_URL:-} in
+  postgresql+psycopg://*) database=postgresql://${DATABASE_URL#postgresql+psycopg://} ;;
+  postgresql://*|postgres://*) database=$DATABASE_URL ;;
+  '') database=${PGDATABASE:?DATABASE_URL or PGDATABASE is required} ;;
+  *)
+    echo 'Unsupported PostgreSQL connection URI' >&2
+    exit 1
+    ;;
+esac
+unset DATABASE_URL
+
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 trap 'exit 130' INT
@@ -12,7 +24,8 @@ trap 'exit 143' TERM
 
 archive="$work_dir/postgres.dump"
 object="postgres/$(date -u +%Y/%m/%d/%Y%m%dT%H%M%SZ)-$POD_UID.dump"
-pg_dump -Fc --no-owner --no-privileges --lock-wait-timeout=30s --file="$archive"
+pg_dump -Fc --no-owner --no-privileges --lock-wait-timeout=30s \
+  --dbname="$database" --file="$archive"
 pg_restore --list "$archive" >/dev/null
 size=$(wc -c < "$archive" | tr -d '[:space:]')
 

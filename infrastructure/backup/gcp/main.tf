@@ -81,6 +81,13 @@ resource "google_monitoring_alert_policy" "stale_backup" {
   enabled               = var.enable_freshness_alert
   notification_channels = var.notification_channel_names
 
+  lifecycle {
+    precondition {
+      condition     = !var.enable_freshness_alert || length(var.notification_channel_names) > 0
+      error_message = "Supply at least one notification channel before enabling the freshness alert."
+    }
+  }
+
   documentation {
     mime_type = "text/markdown"
     content   = "No confirmed DailyFlow backup upload has been observed in 20 hours. Check the CronJob, last Job logs, and newest object in the backup bucket."
@@ -90,11 +97,12 @@ resource "google_monitoring_alert_policy" "stale_backup" {
     display_name = "No successful backup in 20 hours"
 
     condition_prometheus_query_language {
-      query               = <<-PROMQL
+      query                     = <<-PROMQL
         absent_over_time({__name__="logging.googleapis.com/user/${google_logging_metric.backup_success.name}", monitored_resource="k8s_container", project_id="${var.project_id}"}[20h])
       PROMQL
-      duration            = "300s"
-      evaluation_interval = "60s"
+      duration                  = "300s"
+      evaluation_interval       = "60s"
+      disable_metric_validation = !var.enable_freshness_alert
     }
   }
 }
