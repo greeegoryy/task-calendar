@@ -31,3 +31,11 @@ __pycache__/
 *.tfplan
 *.tfvars
 *.tfvars.json
+
+# Private operator documentation and consolidated manual
+/DailyFlow-DevOps.pdf
+/docs/operations.md
+/docs/backup-operations.md
+/docs/interview.md
+/docs/change-summary.md
+/docs/terraform-manual.md

@@ -1,12 +1,12 @@
 # DailyFlow
 
-DailyFlow to projekt edukacyjny wygenerowany z pomocą AI i rozwijany przede wszystkim do nauki DevOps. Kalendarz zadań daje prosty kontekst do ćwiczenia budowania kontenerów, testowania na PostgreSQL, publikowania obrazów, wdrażania na Kubernetes i odzyskiwania usługi po awarii.
+DailyFlow is an AI-assisted learning project built to practice DevOps. It uses a task calendar as a workload for container builds, PostgreSQL integration tests, image publishing, and Kubernetes deployments.
 
-GitHub Actions buduje obrazy i publikuje je w GitHub Container Registry. Pipeline na GKE używa tagów powiązanych z commitem, krótkotrwałego uwierzytelniania przez Workload Identity Federation, migracji Alembic oraz smoke testu przez publiczny HTTPS.
+GitHub Actions builds the images and publishes them to GitHub Container Registry. The deployment pipeline authenticates to Google Cloud through Workload Identity Federation, runs database migrations before rolling out the application on Google Kubernetes Engine, and checks the public HTTPS endpoint after deployment.
 
-## Uruchomienie lokalne w Dockerze
+## Run locally with Docker
 
-Potrzebujesz Git oraz działającego Dockera z pluginem Docker Compose. Na Windows uruchom Docker Desktop z integracją WSL 2. Docker Compose zbuduje i uruchomi kontenery aplikacji, PostgreSQL oraz lokalną skrzynkę Mailpit.
+Install Git, Docker, and the Docker Compose plugin. On Windows, start Docker Desktop and enable WSL 2 integration for your distribution.
 
 ```bash
 git clone https://github.com/greeegoryy/task-calendar.git
@@ -16,31 +16,30 @@ docker compose up --build --wait --wait-timeout 150
 docker compose ps -a
 ```
 
-Jeśli masz już repozytorium, wykonaj polecenia Compose w jego katalogu. Po prawidłowym starcie `migrate` powinien zakończyć się kodem 0. Backend startuje po migracji, a frontend po przejściu kontroli backendu.
+If you already cloned the repository, run the Compose commands from its root. Compose starts PostgreSQL and Mailpit, runs Alembic migrations, and starts the API and frontend in order. A migration container in state `Exited (0)` indicates success.
 
-| Adres | Do czego służy |
+| URL | Purpose |
 | --- | --- |
-| [localhost:3000](http://localhost:3000) | Rejestracja, logowanie i kalendarz |
-| [localhost:8025](http://localhost:8025) | Mailpit z lokalnym linkiem aktywacyjnym |
-| [localhost:8000/docs](http://localhost:8000/docs) | Dokumentacja OpenAPI |
-| [localhost:3000/health](http://localhost:3000/health) | Sprawdzenie API i PostgreSQL przez Nginx |
+| [localhost:3000](http://localhost:3000) | Sign-up, sign-in, and the calendar |
+| [localhost:8025](http://localhost:8025) | Mailpit inbox for account activation |
+| [localhost:8000/docs](http://localhost:8000/docs) | OpenAPI documentation |
+| [localhost:3000/health](http://localhost:3000/health) | API and database health through Nginx |
 
-1. Na stronie aplikacji zarejestruj się np. jako `demo@example.com`.
-2. Otwórz Mailpit i kliknij link z wiadomości aktywacyjnej.
-3. Ustaw hasło liczące co najmniej 12 znaków, zaloguj się i utwórz pierwsze zadanie.
+1. Open the application and register with a test address such as `demo@example.com`.
+2. Open Mailpit and follow the activation link.
+3. Set a password of at least 12 characters, sign in, and create a task.
+
+To inspect logs or stop the stack:
 
 ```bash
 docker compose logs --tail=100 db migrate backend frontend mailpit
 docker compose down
 ```
 
-`docker compose down` zachowuje dane PostgreSQL w wolumenie `postgres_data`. Dodanie `--volumes` usuwa dane lokalnej instancji. Jeśli port jest zajęty, użyj `docker ps` i sprawdź, czy aplikacja już działa. Lokalną konfigurację hasła bazy możesz zmienić przez `POSTGRES_PASSWORD` w pliku `.env` przed pierwszą inicjalizacją wolumenu.
+`docker compose down` keeps the PostgreSQL volume. Adding `--volumes` deletes the local database. If a port is already in use, run `docker ps` to check what is listening. Set `POSTGRES_PASSWORD` in a local `.env` file before initializing the database if you want a different local password.
 
-## Dokumentacja i portfolio
+## Documentation and portfolio
 
-| Dokument | Zawartość |
-| --- | --- |
-| [Manual DailyFlow](docs/user-manual.md) | Start od zera, rejestracja, kalendarz, panel admina, diagnostyka i demo |
-| [Architektura DevOps](docs/devops.md) | Środowiska, GKE, CI/CD i historia wdrożeń |
-
-Lokalna próba odtwarzania danych korzysta z niezależnego środowiska Compose. Uruchom ją poleceniem `bash scripts/postgres-recovery-drill.sh`.
+- [Application manual](docs/user-manual.md) — Docker startup, account activation, the calendar, and local administrator setup.
+- [DevOps architecture](docs/devops.md) — container images, GKE, identity, database migrations, and the path from GitHub Actions to the public smoke test.
+- [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions) — CI and deployment history.

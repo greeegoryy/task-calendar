@@ -1,6 +1,6 @@
 # Architektura i historia DevOps
 
-DailyFlow pozwala pokazać pełny cykl dostarczania aplikacji z bazą danych. Repozytorium zawiera lokalny Compose, pipeline CI/CD, Dockerfile obu komponentów oraz manifesty GKE. Najbliższy etap portfolio to demonstracja, że po każdym wdrożeniu da się sprawdzić usługę, a po awarii odzyskać dane i ruch użytkowników.
+DailyFlow pozwala pokazać pełny cykl dostarczania aplikacji z bazą danych. Repozytorium zawiera lokalny Compose, pipeline CI/CD, Dockerfile obu komponentów oraz manifesty GKE. Poniższy opis pokazuje przepływ ruchu przez klaster oraz drogę od zmiany w Git do publicznego smoke testu.
 
 ## Środowiska i artefakty
 
@@ -37,7 +37,7 @@ Ingress kieruje ruch do serwisu frontendu i korzysta z zarządzanego certyfikatu
 
 ## Od commita do wdrożenia
 
-1. CI na pull requeście lub pushu do `main` buduje frontend i uruchamia testy backendu. PostgreSQL jest usługą testową, a Alembic aktualizuje schemat przed uruchomieniem pytest. Po tych kontrolach CI buduje oba obrazy. Push do `main` publikuje w GHCR tag SHA commita i `latest`. [Workflow CI](../.github/workflows/ci.yml)
+1. CI na pull requeście lub pushu do `main` buduje frontend i uruchamia testy backendu. PostgreSQL jest usługą testową, a Alembic aktualizuje schemat przed uruchomieniem pytest. Po tych kontrolach CI buduje obrazy. Push do `main` publikuje obrazy aplikacji w GHCR pod tagiem SHA commita i `latest`. [Workflow CI](../.github/workflows/ci.yml)
 2. CD reaguje na udane CI dla pushu do `main` w tym repozytorium. Sprawdza, czy SHA nadal wskazuje aktualny `main`, i serializuje wdrożenia. GitHub Actions uwierzytelnia się do GCP przez OIDC i Workload Identity Federation, a dostęp do zasobów w namespace `task-calendar` opisuje RBAC. [Workflow CD](../.github/workflows/cd.yml) · [RBAC](../infrastructure/kubernetes/github-actions-rbac.yaml)
 3. Job Alembic używa obrazu backendu z tym samym SHA, którego użyje Deployment. Nieudana migracja zatrzymuje dalsze wdrożenie. Po udanej migracji CD stosuje manifest backendu, aktualizuje obraz frontendu i sprawdza rollout obu komponentów. Na końcu smoke test przez publiczny HTTPS sprawdza kod HTTP 200 i znacznik Reacta na stronie głównej oraz odpowiedź JSON `{"status": "ok"}` na `/health`. Nieudany smoke test kończy workflow błędem. Ten przebieg zakłada wcześniej przygotowane zasoby klastra, w tym Deploymenty, bazę i sekrety. [Job migracji](../infrastructure/kubernetes/alembic-migration-job.yaml) · [Workflow CD](../.github/workflows/cd.yml)
 
@@ -49,36 +49,7 @@ Manifest `alembic-initial-stamp` to ślad jednorazowego bootstrapu historycznej 
 
 ### Ostatnie zweryfikowane wydanie
 
-26 listopada 2026 r. zweryfikowane wydanie przeszło CI i CD. W przebiegu CD zakończyły się pomyślnie Job migracji, oba rollouty i krok **Smoke test through public HTTPS**. Lokalny wynik rollbacku jest opisany osobno, ponieważ dotyczy testowego kind. [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions)
-
-Lokalna próba odtworzenia i jej dokumentacja trafiły do `main` w commicie `b3ee665`. CI i CD dla tego commita zakończyły się powodzeniem. Automatyczny backup do GCS ma osobną procedurę wdrożenia i weryfikacji. [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions)
-
-## Historia platformy
-
-| Etap | Co zostało zrobione | Commity do omówienia |
-| --- | --- | --- |
-| Lokalny start i pierwsze CI | Docker Compose, początkowy pipeline i publikacja obrazów w GHCR. | `5575777`, `4bbd0d7`, `9f0b7b8` |
-| Wdrożenie w Kubernetes | Manifesty, automatyczne CD, GKE, sondy, strategia aktualizacji i publiczny ruch. | `5568525`, `8d50979`, `ddf8ec2`, `6ab2ab0`, `04b27cb`, `e09f050` |
-| Dostęp i TLS | GitHub-hosted runner z WIF, korekty Kubernetes RBAC, zarządzany certyfikat i Ingress. | `a174f0b`, `83f526c`, `cc82789`, `35bd59b`, `da2877a` |
-| Testy i migracje | Powtarzalniejszy build frontendu, integracja z PostgreSQL w CI, Alembic w obrazie i Job przed wdrożeniem. | `24ccbf0`, `894303a`, `a77e0e4`, `8831f00` |
-| Konfiguracja środowiska | SMTP dla testów i GKE, konfiguracja API i roli administratora, obserwowalność operacji przez audyt aplikacyjny. | `a4ec767`, `629dc3b`, `33b4c9e`, `ccc8061`, `892ba5f`, `0ddb39f` |
-| Ostatnie wydania | Automatyczna migracja lokalnego Compose, wspólne ustawienia CORS i CSRF, `npm ci`, smoke test po GKE i odtwarzalne ćwiczenie rollbacku. | `5b4b02d`, `3497621` |
-
-Audyt aplikacji zapisuje zdarzenia biznesowe w PostgreSQL. Logi CI/CD dokumentują publikację i wdrożenie. Monitoring platformy i centralne alerty pozostają kolejnymi etapami.
-
-## Diagnostyka wdrożenia
-
-Uruchom poniższe polecenia z kontekstem właściwego klastra i uprawnieniami do odczytu w namespace `task-calendar`.
-
-```bash
-kubectl config current-context
-kubectl -n task-calendar get deployment,pod,job,service,ingress
-kubectl -n task-calendar rollout status deployment/backend --timeout=180s
-kubectl -n task-calendar rollout status deployment/frontend --timeout=180s
-kubectl -n task-calendar logs deployment/backend --tail=100
-```
-
-Jeśli migracja się nie powiedzie, nazwę Jobu znajdziesz w logu CD. Użyj `kubectl -n task-calendar describe job/<nazwa>` i `kubectl -n task-calendar logs job/<nazwa> --all-containers=true`. Przy nieudanym rolloucie porównaj tagi obrazów z SHA przebiegu CI i sprawdź zdarzenia podów. Cofnięcie obrazu aplikacji wymaga oceny zgodności poprzedniej wersji z aktualnym schematem bazy, ponieważ migracja odbywa się przed wymianą podów. [Workflow CD](../.github/workflows/cd.yml)
+27 listopada 2026 r. zweryfikowane wydanie przeszło CI i CD. W CD zakończyły się pomyślnie Job migracji, oba rollouty i krok **Smoke test through public HTTPS**. [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions)
 
 ## Próba rollbacku na kind
 
@@ -95,4 +66,3 @@ Workflow [DailyFlow rollback drill](../.github/workflows/rollback-drill.yml) mo�
 26 listopada 2026 r. poprawny obraz frontendu zaliczył smoke test. Wariant zwracający HTTP 503 dla `/health` przeszedł rollout, ale oblał smoke test. Polecenie `kubectl rollout undo` przywróciło poprzedni obraz, a smoke test zaliczył się ponownie po **4 s** od rozpoczęcia cofania. Pomiar dotyczy pojedynczej próby na lokalnym kind.
 
 Osobno uruchomiono Compose na świeżym PostgreSQL 17. Przeszło wszystkich sześć migracji Alembic, 42 testy pytest i smoke test przez Nginx. Sprawdzono też rejestrację, odbiór wiadomości w Mailpit, aktywację, logowanie, utworzenie i usunięcie zadania oraz wylogowanie.
-
