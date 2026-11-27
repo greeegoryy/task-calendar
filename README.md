@@ -1,8 +1,11 @@
 # DailyFlow
 
+
 DailyFlow is an AI-assisted learning project built to practice DevOps. It uses a task calendar as a workload for container builds, PostgreSQL integration tests, image publishing, and Kubernetes deployments.
 
-GitHub Actions builds the images and publishes them to GitHub Container Registry. The deployment pipeline authenticates to Google Cloud through Workload Identity Federation, runs database migrations before rolling out the application on Google Kubernetes Engine, and checks the public HTTPS endpoint after deployment.
+GitHub Actions builds the images and publishes them to GitHub Container Registry. The deployment pipeline authenticates to Google Cloud through Workload Identity Federation, runs database migrations before rolling out the application on Google Kubernetes Engine, and checks the public HTTPS endpoint after deployment.\
+
+You can access app directly form this address: https://dailyflow-app.duckdns.org/
 
 ## Run locally with Docker
 
