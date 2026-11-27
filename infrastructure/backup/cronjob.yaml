@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dailyflow-postgres-backup
+  namespace: task-calendar
+spec:
+  schedule: "0 */12 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          serviceAccountName: dailyflow-postgres-backup
+          automountServiceAccountToken: false
+          imagePullSecrets:
+            - name: ghcr-secret
+          # Standard GKE node pools with Workload Identity Federation enabled.
+          nodeSelector:
+            iam.gke.io/gke-metadata-server-enabled: "true"
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              # Set to a validated GHCR image digest before applying.
+              image: dailyflow-postgres-backup:replace-before-apply
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PGHOST
+                  value: postgres
+                - name: PGDATABASE
+                  value: taskcalendar
+                - name: PGUSER
+                  value: taskcalendar
+                - name: PGCONNECT_TIMEOUT
+                  value: "10"
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: password
+                - name: BACKUP_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: dailyflow-postgres-backup
+                      key: bucket
+                - name: POD_UID
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.uid
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                  ephemeral-storage: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                  ephemeral-storage: 2Gi
+              volumeMounts:
+                - name: work
+                  mountPath: /tmp
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 1Gi

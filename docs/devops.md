@@ -51,6 +51,8 @@ Manifest `alembic-initial-stamp` to ślad jednorazowego bootstrapu historycznej 
 
 26 listopada 2026 r. zweryfikowane wydanie przeszło CI i CD. W przebiegu CD zakończyły się pomyślnie Job migracji, oba rollouty i krok **Smoke test through public HTTPS**. Lokalny wynik rollbacku jest opisany osobno, ponieważ dotyczy testowego kind. [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions)
 
+Lokalna próba odtworzenia i jej dokumentacja trafiły do `main` w commicie `b3ee665`. CI i CD dla tego commita zakończyły się powodzeniem. Automatyczny backup do GCS ma osobną procedurę wdrożenia i weryfikacji. [GitHub Actions](https://github.com/greeegoryy/task-calendar/actions)
+
 ## Historia platformy
 
 | Etap | Co zostało zrobione | Commity do omówienia |

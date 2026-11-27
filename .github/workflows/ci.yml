@@ -134,6 +134,7 @@ jobs:
           REPO=$(echo "$REPOSITORY" | tr '[:upper:]' '[:lower:]')
           echo "frontend=ghcr.io/${REPO}-frontend" >> "$GITHUB_OUTPUT"
           echo "backend=ghcr.io/${REPO}-backend" >> "$GITHUB_OUTPUT"
+          echo "backup=ghcr.io/${REPO}-postgres-backup" >> "$GITHUB_OUTPUT"
 
       - name: Login to GitHub Container Registry
         if: github.event_name == 'push'
@@ -160,3 +161,10 @@ jobs:
           tags: |
             ${{ steps.images.outputs.backend }}:latest
             ${{ steps.images.outputs.backend }}:${{ github.sha }}
+
+      - name: Build and Push PostgreSQL Backup
+        uses: docker/build-push-action@v6
+        with:
+          context: ./infrastructure/backup/image
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.images.outputs.backup }}:${{ github.sha }}
