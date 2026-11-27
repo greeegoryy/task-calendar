@@ -1,10 +1,10 @@
-# Manual DailyFlow
+# DailyFlow Application Manual
 
-DailyFlow to kalendarz zadań i projekt edukacyjny wygenerowany z pomocą AI. W tym rozdziale uruchomisz lokalne środowisko, założysz konta demonstracyjne, obsłużysz kalendarz i panel administratora oraz poznasz podstawową diagnostykę. Szczegóły wdrożenia opisuje [architektura DevOps](devops.md).
+DailyFlow is a task calendar and an AI-assisted learning project. This manual covers local setup, account activation, the calendar, the administrator panel, and basic troubleshooting. See the [DevOps architecture](devops.md) for deployment and infrastructure details.
 
-## 1. Uruchom aplikację od zera
+## 1. Run the application locally
 
-Na Windows uruchom Docker Desktop i włącz integrację z używaną dystrybucją WSL 2. Na Linuksie potrzebujesz działającego Docker Engine, pluginu Compose oraz dostępu użytkownika do silnika. Polecenia niżej używają Bash lub WSL. Podstawowe polecenia Docker Compose możesz też wykonać w PowerShell.
+On Windows, start Docker Desktop and enable WSL 2 integration for your distribution. On Linux, you need a running Docker Engine, the Compose plugin, and permission to access the engine. The commands below use Bash or WSL. The basic Docker Compose commands also work in PowerShell.
 
 ```bash
 docker version
@@ -16,31 +16,35 @@ docker compose up --build --wait --wait-timeout 150
 docker compose ps -a
 ```
 
-Jeśli repozytorium jest już sklonowane, zacznij od jego katalogu. Na pierwszym starcie Docker może pobierać obrazy bazowe i budować Nginx oraz API. Usługa `db` uruchamia PostgreSQL, a `migrate` wykonuje `alembic upgrade head` i kończy się kodem 0. Po udanej migracji startuje API. Frontend udostępnia aplikację po uzyskaniu gotowości API. Mailpit przechwytuje pocztę z testowej instancji.
+If you already cloned the repository, start from its root. On the first run, Docker may download base images and build the frontend and API containers. The `db` service starts PostgreSQL, and `migrate` runs `alembic upgrade head` and exits with code 0. The API starts after migration succeeds. The frontend becomes available after the API passes its health check. Mailpit captures email sent by this local instance.
 
-| Adres | Użycie |
+| Address | Purpose |
 | --- | --- |
-| [Aplikacja](http://localhost:3000) | Kalendarz, rejestracja i panel administratora |
-| [Mailpit](http://localhost:8025) | E-maile z linkiem aktywacyjnym |
-| [OpenAPI](http://localhost:8000/docs) | Swagger UI i lista endpointów |
-| [Kontrola /health](http://localhost:3000/health) | Odpowiedź `{"status":"ok"}` przez Nginx, FastAPI i PostgreSQL |
+| [Application](http://localhost:3000) | Calendar, registration, and the administrator panel |
+| [Mailpit](http://localhost:8025) | Account activation emails |
+| [OpenAPI](http://localhost:8000/docs) | Swagger UI and the API endpoint list |
+| [Health check](http://localhost:3000/health) | A `{"status":"ok"}` response through Nginx, FastAPI, and PostgreSQL |
 
-W codziennej pracy `docker compose down` zatrzymuje usługi i zachowuje dane. Aby ponownie wystartować po zmianie w kodzie lub Dockerfile, użyj `docker compose up --build --wait`. `docker compose down --volumes` usuwa również bazę i służy do celowego resetu danych demonstracyjnych.
+Use `docker compose down` to stop the services and keep the data. After changing application code or a Dockerfile, run `docker compose up --build --wait`. Adding `--volumes` to `docker compose down` also deletes the database. Use it to deliberately reset a disposable demo instance.
 
-## 2. Rejestracja i kalendarz
+Local setup uses Docker Compose. Terraform is used for the cloud backup infrastructure. See [Infrastructure as code](devops.md#infrastructure-as-code-with-terraform) for its scope.
 
-1. Otwórz aplikację i przejdź do formularza rejestracji. Podaj imię i adres `demo@example.com`. Użyj testowego adresu z poprawną składnią.
-2. Wejdź do Mailpit i otwórz wiadomość **DailyFlow - Activate your account**. Kliknij link aktywacyjny prowadzący do aplikacji. Link jest jednorazowy i wygasa po 24 godzinach.
-3. Ustaw hasło od 12 do 128 znaków. Wróć do logowania, wpisz adres i hasło.
-4. Kliknij **+ Nowe zadanie** lub zaznacz przedział w kalendarzu. Podaj tytuł, godziny i kolor, a następnie wybierz **Zapisz**.
-5. Kliknij istniejące zadanie, aby edytować dane, zaznaczyć **Wykonane** lub je usunąć. W kalendarzu możesz przeciągnąć zadanie na inny termin i zmienić jego długość.
-6. Użyj widoku **Miesiąc**, **Tydzień** lub **Dzień**. W razie potrzeby wróć do bieżącej daty przez **Dzisiaj**. Zakończ sesję przyciskiem **Wyloguj**.
+## 2. Register and use the calendar
 
-W lokalnym Compose Mailpit pokazuje wiadomości wysłane w środowisku demonstracyjnym. Przy ponownym użyciu tego samego adresu sprawdź, czy konto już istnieje. Do nowego demo możesz użyć innego adresu w domenie `example.com`.
+The application interface is in Polish. The labels below match what you see on screen.
 
-## 3. Panel administratora do demonstracji
+1. Open the registration form and enter a name and a test email address such as `demo@example.com`.
+2. In Mailpit, open **DailyFlow - Activate your account** and follow the activation link. The link is single-use and expires after 24 hours.
+3. Set a password between 12 and 128 characters, then sign in with your email address and password.
+4. Click **+ Nowe zadanie** (New task) or select a time range on the calendar. Enter a title, times, and a color, then click **Zapisz** (Save).
+5. Click an existing task to edit it, mark it **Wykonane** (Done), or delete it. Drag the task to reschedule it or resize it to change its duration.
+6. Switch between **Miesiąc** (Month), **Tydzień** (Week), and **Dzień** (Day). Click **Dzisiaj** (Today) to return to the current date and **Wyloguj** (Sign out) to end your session.
 
-Rejestracja tworzy zwykłego użytkownika. Aby przygotować pierwsze konto administratora, najpierw zarejestruj i aktywuj konto demonstracyjne. Poniższe polecenie wykonaj wyłącznie na własnym lokalnym Compose. Zamień `demo@example.com` na adres tego konta. Polecenie powinno zwrócić dokładnie jedną zmianę, `UPDATE 1`.
+If you reuse an email address, check whether the account already exists. For a new demo, use another address under `example.com`. Mailpit captures the message locally.
+
+## 3. Set up a local administrator
+
+Registration creates a regular user. To set up the first administrator, register and activate a demo account. Run this command only against your local Compose instance. Replace `demo@example.com` with that account's email. Expect exactly one updated row, reported as `UPDATE 1`.
 
 ```bash
 docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U calendar -d calendar \
@@ -48,13 +52,13 @@ docker compose exec -T db psql -X -v ON_ERROR_STOP=1 -U calendar -d calendar \
   AND is_active RETURNING email, is_admin;"
 ```
 
-Wyloguj się i zaloguj ponownie, aby aplikacja odświeżyła dane konta. Otwórz **Panel administratora**.
+Sign out and sign back in to refresh the account details. Open **Panel administratora** (Administrator panel).
 
-- **Użytkownicy** pokazują listę kont, status i role. Aby zademonstrować zmianę roli, aktywuj najpierw drugiego użytkownika. Nadaj mu uprawnienia przez panel, a następnie je odbierz. Ostatni aktywny administrator jest chroniony przed odebraniem roli przez panel.
-- **Zadania** pozwalają wyświetlić zadania różnych kont, zawęzić wyniki filtrami i edytować albo usunąć wybrane zadanie. Przygotuj zadanie na drugim koncie, aby pokazać różnicę między widokiem właściciela a widokiem administratora.
-- **Historia aktywności** pokazuje zdarzenia audytu, m.in. logowanie, operacje na zadaniach i zmiany ról dokonywane przez API. Bootstrap roli bezpośrednio w bazie omija ścieżkę audytu aplikacji. Na demo pokaż zdarzenie utworzone przez panel.
+- **Użytkownicy** (Users) lists accounts, their status, and their roles. Activate a second user to demonstrate granting and revoking the administrator role. The panel prevents revoking the role from the last active administrator.
+- **Zadania** (Tasks) lets you filter, edit, and delete tasks across accounts. Create a task in a second account to demonstrate the difference between its owner's calendar and the administrator view.
+- **Historia aktywności** (Activity history) shows audit events such as sign-ins, task changes, and role changes made through the API. Setting the first administrator directly in the database bypasses the application audit trail. Use a change made through the panel to demonstrate an audit event.
 
-## 4. Typowe problemy i ich diagnoza
+## 4. Troubleshoot local problems
 
 ```bash
 docker compose ps -a
@@ -64,19 +68,19 @@ docker ps --format 'table {{.Names}}\t{{.Ports}}'
 bash scripts/smoke-test.sh http://localhost:3000
 ```
 
-| Objaw | Co sprawdzić |
+| Symptom | What to check |
 | --- | --- |
-| Docker nie odpowiada | Uruchom silnik i sprawdź, czy `docker version` pokazuje klienta oraz serwer. |
-| Port jest zajęty | Sprawdź `docker ps`. Lokalny Compose używa portów 3000, 8000 i 8025. Przy równoległej instancji użyj osobnego projektu i portów, a adres frontendu zapisz w `APP_BASE_URL` oraz `ALLOWED_ORIGINS`. |
-| Frontend czeka na backend | Sprawdź `migrate`, logi API i dostępność PostgreSQL. Poprawny stan migracji to `Exited (0)`. |
-| Mailpit nie pokazuje wiadomości | Sprawdź, czy rejestrujesz nowy adres, czy Mailpit działa i czy w logach backendu widać dostarczenie SMTP. |
-| E-mail otwiera zły adres | Porównaj adres frontendu z ustawieniem `APP_BASE_URL`. Otwieraj lokalną aplikację pod adresem `localhost:3000` zgodnym z domyślną konfiguracją. |
-| Brakuje panelu administratora | Sprawdź, czy konto jest aktywne, SQL zwrócił `UPDATE 1`, a po zmianie roli wykonano nowe logowanie. |
+| Docker does not respond | Start the engine and check that `docker version` shows both client and server. |
+| A port is already in use | Check `docker ps`. Compose uses host ports 3000, 8000, and 8025 by default. To run a second instance, use a separate project and different host ports. Set `APP_BASE_URL` and `ALLOWED_ORIGINS` to the new frontend address. |
+| The frontend is waiting for the backend | Check the `migrate` container, API logs, and PostgreSQL readiness. A successful migration shows `Exited (0)`. |
+| Mailpit shows no activation email | Check whether you registered a new address, whether Mailpit is running, and whether the API logs show SMTP delivery. |
+| The activation link opens the wrong address | Compare the frontend URL with `APP_BASE_URL`. The default local address is `http://localhost:3000`. |
+| The administrator panel is missing | Check that the account is active, the SQL command reported `UPDATE 1`, and you signed in again after the role change. |
 
-## 5. Co zostało sprawdzone
+## 5. Verification results
 
-| Zakres | Wynik z 27 listopada 2026 r. |
+| Area | Results from November 27, 2026 |
 | --- | --- |
-| Docker Compose | Start z pustą bazą, migracje Alembic i smoke test przez Nginx zakończyły się powodzeniem. Próba użyła osobnych portów, ponieważ standardowa instancja była uruchomiona. |
-| Aplikacja lokalna | Przez HTTP sprawdzono rejestrację, Mailpit, aktywację, logowanie, utworzenie i ukończenie zadania, lokalną konfigurację admina, edycję z widoku administracyjnego API, wpis audytu, usunięcie i wylogowanie. Przeszły 42 testy backendu z PostgreSQL. |
-| Publiczny GKE | Smoke test HTTPS zaliczył stronę główną oraz `/health` przy pierwszym podejściu. [Przebiegi GitHub Actions](https://github.com/greeegoryy/task-calendar/actions) |
+| Docker Compose | A fresh database started, Alembic migrations completed, and the smoke test passed through Nginx. The test ran on separate ports because the default instance was already running. |
+| Local application | HTTP checks covered registration, Mailpit, activation, sign-in, task creation and completion, local administrator setup, editing through the administrator API, audit, deletion, and sign-out. All 42 backend tests passed against PostgreSQL. |
+| Public GKE deployment | The HTTPS smoke test passed on its first attempt for both the home page and `/health`. [GitHub Actions runs](https://github.com/greeegoryy/task-calendar/actions) |
