@@ -8,7 +8,7 @@ GitHub Actions buduje obrazy frontendu i backendu, testuje migracje na PostgreSQ
 
 | Dokument | Zawartość |
 | --- | --- |
-| [Architektura DevOps](docs/devops.md) | Przepływ wdrożenia, diagnostyka i architektura GKE |
+| [Architektura DevOps](docs/devops.md) | Środowiska, GKE, historia wdrożeń i środowiska |
 
 ## Uruchomienie lokalne
 
@@ -26,3 +26,4 @@ Dokumentacja API jest dostępna pod adresem http://localhost:8000/docs. Frontend
 - `docker compose logs migrate backend` pokazuje logi migracji i API.
 - `docker compose down` zatrzymuje aplikację i zachowuje dane.
 - `docker compose down -v` usuwa także wolumen z danymi.
+- `bash scripts/postgres-recovery-drill.sh` odtwarza kopię danych testowych w osobnym Compose i sprawdza aplikację.
